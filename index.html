@@ -3,223 +3,186 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LittleLoop V1</title>
+    <title>LittleLoop Client Demo</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main class="page-shell">
-      <section class="phone" aria-label="LittleLoop mobile app">
+    <main class="demo-shell">
+      <section class="phone" aria-label="LittleLoop mobile web app demo">
         <div class="status-bar">
           <span>09:42</span>
-          <span>5G 86%</span>
+          <span>Demo mode</span>
         </div>
 
         <header class="app-header">
           <div>
             <p class="eyebrow">LittleLoop</p>
-            <h1 id="screen-title">Mila is in care</h1>
+            <h1 id="screen-title">Parent daily view</h1>
           </div>
-          <button class="notification-button" aria-label="Notifications">
-            <span class="bell-mark"></span>
-            <span class="button-text">3</span>
-          </button>
+          <button class="reset-button" id="reset-demo">Reset</button>
         </header>
 
-        <nav class="role-switcher" aria-label="Choose role">
-          <button class="role-tab active" data-role="parent">Parent</button>
-          <button class="role-tab" data-role="teacher">Teacher</button>
-          <button class="role-tab" data-role="owner">Owner</button>
-        </nav>
-
-        <section class="screen active" data-screen="parent-home">
-          <article class="hero-card">
-            <div>
-              <p class="eyebrow light">Verified update</p>
-              <h2>Mila had a calm, happy morning.</h2>
-              <p>Teacher Naledi logged arrival, breakfast, painting, and nap time.</p>
-            </div>
-            <div class="avatar">M</div>
-          </article>
-
-          <div class="trust-strip" aria-label="Trust signals">
-            <span>Guardian-only</span>
-            <span>Time-stamped</span>
-            <span>POPIA-aware</span>
-          </div>
-
-          <section class="stat-grid three">
-            <article>
-              <span>Arrival</span>
-              <strong>07:41</strong>
-            </article>
-            <article>
-              <span>Nap</span>
-              <strong>1h 20m</strong>
-            </article>
-            <article>
-              <span>Meals</span>
-              <strong>2 of 3</strong>
-            </article>
-          </section>
-
-          <section class="section-block">
-            <div class="section-heading">
-              <h3>Today timeline</h3>
-              <span>Live</span>
-            </div>
-            <div class="timeline" id="parent-timeline"></div>
-          </section>
-        </section>
-
-        <section class="screen" data-screen="parent-moments">
-          <section class="section-block">
-            <div class="section-heading">
-              <h3>Private moments</h3>
-              <span>6 saved</span>
-            </div>
-            <div class="moment-grid">
-              <article class="moment-tile art"><span>Painting shapes</span></article>
-              <article class="moment-tile lunch"><span>Lunch finished</span></article>
-              <article class="moment-tile play"><span>Garden play</span></article>
-              <article class="moment-tile nap"><span>Nap time</span></article>
-            </div>
-          </section>
-          <article class="plain-card">
-            <p class="eyebrow">Consent</p>
-            <h3>Only approved guardians can view Mila's album.</h3>
-            <p>Photo access can be paused per child, classroom, or guardian.</p>
-          </article>
-        </section>
-
-        <section class="screen" data-screen="parent-billing">
-          <article class="invoice-card">
-            <p class="eyebrow light">May invoice</p>
-            <h2>R1,850 due</h2>
-            <p>Due 25 May 2026</p>
-            <button class="primary-action">Pay or upload proof</button>
-          </article>
-          <section class="section-block">
-            <div class="section-heading">
-              <h3>Receipts</h3>
-              <span>Current year</span>
-            </div>
-            <div class="list">
-              <article><strong>April fees</strong><span>Paid R1,850</span></article>
-              <article><strong>March fees</strong><span>Paid R1,850</span></article>
-              <article><strong>Registration</strong><span>Paid R600</span></article>
-            </div>
-          </section>
-        </section>
-
-        <section class="screen" data-screen="parent-chat">
-          <section class="section-block">
-            <div class="section-heading">
-              <h3>Teacher chat</h3>
-              <span>2 messages</span>
-            </div>
-            <div class="chat-thread">
-              <p class="message teacher">Mila ate most of lunch and asked for more water.</p>
-              <p class="message parent">Thank you. Please keep her sunhat on outside.</p>
-              <p class="message teacher">Done. It is in her cubby for pickup.</p>
-            </div>
-          </section>
-          <div class="composer">
-            <span>Message Teacher Naledi</span>
-            <button>Send</button>
+        <section class="login-panel" id="login-panel">
+          <p class="eyebrow">Client pitch demo</p>
+          <h2>Choose how the creche sees the app.</h2>
+          <p>Switch roles during the pitch to show the same day from each user's point of view.</p>
+          <div class="login-actions">
+            <button data-login="parent">Parent</button>
+            <button data-login="teacher">Teacher</button>
+            <button data-login="owner">Owner</button>
           </div>
         </section>
 
-        <section class="screen" data-screen="teacher-home">
-          <article class="hero-card teacher">
-            <div>
-              <p class="eyebrow light">Blue Room</p>
-              <h2>18 children checked in.</h2>
-              <p>Capture once. Parents see verified updates instantly.</p>
-            </div>
-            <div class="avatar">18</div>
-          </article>
-          <section class="teacher-actions" id="teacher-actions"></section>
-          <section class="section-block">
-            <div class="section-heading">
-              <h3>Class queue</h3>
-              <span>4 tasks</span>
-            </div>
-            <div class="list">
-              <article><strong>Verify 5 photos</strong><span>Tag children before publishing</span></article>
-              <article><strong>Confirm 3 pickups</strong><span>QR scans waiting for signature</span></article>
-              <article><strong>Send day summary</strong><span>Draft created from logs</span></article>
-            </div>
-          </section>
-        </section>
+        <section class="app-panel hidden" id="app-panel">
+          <nav class="role-switcher" aria-label="Choose role">
+            <button class="role-tab active" data-role="parent">Parent</button>
+            <button class="role-tab" data-role="teacher">Teacher</button>
+            <button class="role-tab" data-role="owner">Owner</button>
+          </nav>
 
-        <section class="screen" data-screen="owner-home">
-          <section class="stat-grid two">
-            <article>
-              <span>Collected</span>
-              <strong>R42,600</strong>
-              <p>May to date</p>
+          <section class="screen active" data-screen="parent-home">
+            <article class="hero-card">
+              <div>
+                <p class="eyebrow light">Verified update</p>
+                <h2 id="parent-summary">Mila is safe and settled.</h2>
+                <p>Updates are visible only to approved guardians.</p>
+              </div>
+              <div class="avatar">M</div>
             </article>
-            <article>
-              <span>Outstanding</span>
-              <strong>R8,900</strong>
-              <p>7 families</p>
-            </article>
-          </section>
-          <article class="owner-card">
-            <p class="eyebrow light">Business cockpit</p>
-            <h2>Less admin, more trust.</h2>
-            <p>Digital receipts, parent updates, secure pickup, and cleaner records in one place.</p>
-          </article>
-          <section class="section-block">
-            <div class="section-heading">
-              <h3>Owner actions</h3>
-              <span>V1</span>
-            </div>
-            <div class="list">
-              <article><strong>Send fee reminders</strong><span>7 families outstanding</span></article>
-              <article><strong>Review photo consent</strong><span>2 forms need signatures</span></article>
-              <article><strong>Invite new parent</strong><span>Create guardian access</span></article>
-              <article><strong>Export receipts</strong><span>Monthly PDF pack</span></article>
-            </div>
-          </section>
-        </section>
 
-        <nav class="bottom-nav" aria-label="Primary navigation">
-          <button class="nav-item active" data-target="parent-home">Home</button>
-          <button class="nav-item" data-target="parent-moments">Moments</button>
-          <button class="nav-item" data-target="parent-billing">Billing</button>
-          <button class="nav-item" data-target="parent-chat">Chat</button>
-        </nav>
+            <div class="trust-strip">
+              <span>Guardian-only</span>
+              <span>Time-stamped</span>
+              <span>POPIA-aware</span>
+            </div>
+
+            <section class="stat-grid three">
+              <article><span>Status</span><strong id="care-status">In care</strong></article>
+              <article><span>Nap</span><strong id="nap-stat">1h 20m</strong></article>
+              <article><span>Meals</span><strong id="meal-stat">2 of 3</strong></article>
+            </section>
+
+            <section class="section-block">
+              <div class="section-heading">
+                <h3>Today timeline</h3>
+                <span id="timeline-count">0 items</span>
+              </div>
+              <div class="timeline" id="parent-timeline"></div>
+            </section>
+          </section>
+
+          <section class="screen" data-screen="parent-moments">
+            <section class="section-block">
+              <div class="section-heading">
+                <h3>Private moments</h3>
+                <span id="moment-count">0 saved</span>
+              </div>
+              <div class="moment-grid" id="moment-grid"></div>
+            </section>
+            <article class="plain-card">
+              <p class="eyebrow">Photo privacy</p>
+              <h3>No more whole-school WhatsApp photo dumps.</h3>
+              <p>Teachers tag children before publishing. Parents only see their own child.</p>
+            </article>
+          </section>
+
+          <section class="screen" data-screen="parent-billing">
+            <article class="invoice-card">
+              <p class="eyebrow light">May invoice</p>
+              <h2 id="invoice-amount">R1,850 due</h2>
+              <p id="invoice-status">Due 25 May 2026</p>
+              <button class="primary-action" id="pay-demo">Mark proof uploaded</button>
+            </article>
+            <section class="section-block">
+              <div class="section-heading">
+                <h3>Receipts</h3>
+                <span id="receipt-count">3 receipts</span>
+              </div>
+              <div class="list" id="receipt-list"></div>
+            </section>
+          </section>
+
+          <section class="screen" data-screen="parent-chat">
+            <section class="section-block">
+              <div class="section-heading">
+                <h3>Teacher chat</h3>
+                <span>Live thread</span>
+              </div>
+              <div class="chat-thread" id="chat-thread"></div>
+            </section>
+            <form class="composer" id="chat-form">
+              <input id="chat-input" placeholder="Message Teacher Naledi" />
+              <button>Send</button>
+            </form>
+          </section>
+
+          <section class="screen" data-screen="teacher-home">
+            <article class="hero-card teacher">
+              <div>
+                <p class="eyebrow light">Blue Room</p>
+                <h2>18 children checked in.</h2>
+                <p>Tap once during the day. Parents get verified updates.</p>
+              </div>
+              <div class="avatar">18</div>
+            </article>
+            <section class="teacher-actions" id="teacher-actions"></section>
+            <section class="section-block">
+              <div class="section-heading">
+                <h3>Class queue</h3>
+                <span id="queue-count">3 tasks</span>
+              </div>
+              <div class="list" id="teacher-queue"></div>
+            </section>
+          </section>
+
+          <section class="screen" data-screen="owner-home">
+            <section class="stat-grid two">
+              <article><span>Collected</span><strong id="collected-stat">R42,600</strong><p>May to date</p></article>
+              <article><span>Outstanding</span><strong id="outstanding-stat">R8,900</strong><p id="family-stat">7 families</p></article>
+            </section>
+            <article class="owner-card">
+              <p class="eyebrow light">Business cockpit</p>
+              <h2>Less admin, more trust.</h2>
+              <p>Billing, consent, parent updates, and pickup records are in one place.</p>
+            </article>
+            <section class="section-block">
+              <div class="section-heading">
+                <h3>Owner actions</h3>
+                <span>V1</span>
+              </div>
+              <div class="list owner-actions">
+                <button data-owner-action="reminder"><strong>Send fee reminders</strong><span>Notify outstanding families</span></button>
+                <button data-owner-action="consent"><strong>Review photo consent</strong><span>2 forms need signatures</span></button>
+                <button data-owner-action="export"><strong>Export receipts</strong><span>Monthly PDF pack</span></button>
+              </div>
+            </section>
+          </section>
+
+          <nav class="bottom-nav" aria-label="Primary navigation">
+            <button class="nav-item active" data-target="parent-home">Home</button>
+            <button class="nav-item" data-target="parent-moments">Moments</button>
+            <button class="nav-item" data-target="parent-billing">Billing</button>
+            <button class="nav-item" data-target="parent-chat">Chat</button>
+          </nav>
+        </section>
       </section>
 
-      <aside class="launch-panel">
-        <p class="eyebrow">Version 1</p>
-        <h2>Creche communication that parents actually trust.</h2>
+      <aside class="pitch-panel">
+        <p class="eyebrow">First-client pitch</p>
+        <h2>Replace WhatsApp photo chaos and receipt books with one trusted parent portal.</h2>
         <p>
-          V1 focuses on the first real adoption loop: teachers log the day quickly, parents see
-          verified updates privately, and the owner gets clearer billing and records.
+          This working demo shows the core loop: teachers log the day, parents see private verified
+          updates, and the creche owner gets cleaner billing and records.
         </p>
-        <div class="launch-grid">
-          <article>
-            <strong>Parent value</strong>
-            <span>Daily reassurance, private photos, receipts, and direct messages.</span>
-          </article>
-          <article>
-            <strong>Teacher value</strong>
-            <span>Fast capture for meals, naps, attendance, incidents, and photo moments.</span>
-          </article>
-          <article>
-            <strong>Owner value</strong>
-            <span>Billing visibility, consent tracking, parent trust, and less paperwork.</span>
-          </article>
-          <article>
-            <strong>Launch plan</strong>
-            <span>Start with one class, onboard parents, replace WhatsApp photos first.</span>
-          </article>
+        <div class="pitch-grid">
+          <article><strong>Pain solved</strong><span>Photos, notices, billing, receipts, pickup records, and parent messages.</span></article>
+          <article><strong>Why parents return</strong><span>They open it to see their child's day, not because the app nags them.</span></article>
+          <article><strong>Why staff use it</strong><span>Fast buttons, no double admin, and day summaries generated from logs.</span></article>
+          <article><strong>How to start</strong><span>Pilot one classroom for two weeks, then roll out billing and receipts.</span></article>
         </div>
-        <section class="next-step-card">
-          <strong>Ready for demo</strong>
-          <span>Use the phone controls to show each role in under three minutes.</span>
+        <section class="demo-script">
+          <strong>Three-minute pitch flow</strong>
+          <span>Parent view, teacher logs an update, parent timeline changes, owner sees admin value.</span>
         </section>
       </aside>
     </main>

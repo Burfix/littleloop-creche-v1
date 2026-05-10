@@ -6,22 +6,25 @@ Local demo URL:
 
 ## What V1 Includes
 
+- Client pitch role picker.
 - Parent home view with verified daily update.
 - Parent timeline for arrival, meals, activities, and nap.
 - Private moments gallery.
-- Billing view with invoice, receipts, and payment action.
-- Teacher cockpit with quick actions for attendance, meal, nap, photo, incident, and summary.
+- Billing view with invoice, receipts, and payment-proof demo action.
+- Teacher cockpit with quick actions that add updates to the parent timeline.
 - Owner dashboard with collected/outstanding fees and admin actions.
 - Role switching between parent, teacher, and owner.
+- Demo state saved in browser storage with reset button.
 - Mobile-first layout designed for a creche demo.
 
 ## Demo Flow
 
-1. Start on Parent: show the private verified daily update.
+1. Choose Parent: show private verified updates and timeline.
 2. Tap Moments: explain this replaces WhatsApp photo sharing.
-3. Tap Billing: show invoices and digital receipts.
-4. Switch to Teacher: show quick logging actions.
-5. Switch to Owner: show billing visibility, consent, and admin records.
+3. Tap Billing: show invoices, receipts, and proof upload.
+4. Switch to Teacher: tap a quick action and show how it adds to the timeline.
+5. Switch back to Parent: show the new update at the top.
+6. Switch to Owner: show billing visibility, consent, and admin records.
 
 ## V1 Product Promise
 
@@ -38,4 +41,3 @@ Turn this static demo into a real app with:
 - Photo upload and consent
 - Invoice and receipt records
 - Teacher timeline logging
-

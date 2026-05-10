@@ -23,18 +23,26 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(circle at 10% 10%, rgba(76, 159, 216, 0.28), transparent 30rem),
-    radial-gradient(circle at 90% 20%, rgba(235, 112, 95, 0.22), transparent 28rem),
+    radial-gradient(circle at 8% 12%, rgba(76, 159, 216, 0.28), transparent 30rem),
+    radial-gradient(circle at 92% 18%, rgba(235, 112, 95, 0.22), transparent 28rem),
     linear-gradient(135deg, #f8f0df, #e9f6ef 52%, #f6ddd7);
+}
+
+button,
+input {
+  font: inherit;
 }
 
 button {
   border: 0;
-  font: inherit;
   cursor: pointer;
 }
 
-.page-shell {
+.hidden {
+  display: none !important;
+}
+
+.demo-shell {
   width: min(1180px, 100%);
   min-height: 100vh;
   margin: 0 auto;
@@ -61,7 +69,8 @@ button {
 .app-header,
 .role-switcher,
 .screen,
-.bottom-nav {
+.bottom-nav,
+.login-panel {
   padding-inline: 20px;
 }
 
@@ -126,24 +135,46 @@ p {
   line-height: 1.45;
 }
 
-.notification-button {
-  position: relative;
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
+.reset-button {
+  min-width: 58px;
+  height: 42px;
+  border-radius: 15px;
   background: #17211f;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.login-panel {
+  height: calc(100% - 92px);
+  display: grid;
+  align-content: center;
+  gap: 16px;
+}
+
+.login-panel h2 {
+  font-size: 32px;
+}
+
+.login-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.login-actions button {
+  min-height: 54px;
+  border-radius: 18px;
+  background: var(--teal);
   color: #fff;
   font-weight: 900;
 }
 
-.bell-mark {
-  position: absolute;
-  top: 11px;
-  right: 12px;
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  background: var(--coral);
+.login-actions button:nth-child(2) {
+  background: var(--blue);
+}
+
+.login-actions button:nth-child(3) {
+  background: #17211f;
 }
 
 .role-switcher {
@@ -323,6 +354,19 @@ p {
   padding: 12px;
   border-radius: 16px;
   background: rgba(23, 33, 31, 0.04);
+  border-left: 5px solid var(--teal);
+}
+
+.timeline-item.photo {
+  border-left-color: var(--coral);
+}
+
+.timeline-item.nap {
+  border-left-color: #6d7bc9;
+}
+
+.timeline-item.incident {
+  border-left-color: #d36a2f;
 }
 
 .timeline-item time {
@@ -363,11 +407,13 @@ p {
   background: linear-gradient(135deg, #8ed3f2, #0f766e);
 }
 
-.moment-tile.play {
+.moment-tile.play,
+.moment-tile.outside {
   background: linear-gradient(135deg, #d9f2e7, #407f4f);
 }
 
-.moment-tile.nap {
+.moment-tile.nap,
+.moment-tile.craft {
   background: linear-gradient(135deg, #6d7bc9, #252f59);
 }
 
@@ -381,10 +427,26 @@ p {
   font-weight: 900;
 }
 
-.list article {
+.list article,
+.owner-actions button {
   padding: 13px;
   border-radius: 16px;
   background: rgba(23, 33, 31, 0.04);
+}
+
+.owner-actions button {
+  border: 0;
+  color: var(--ink);
+  text-align: left;
+}
+
+.owner-actions strong,
+.owner-actions span {
+  display: block;
+}
+
+.owner-actions span {
+  margin-top: 4px;
 }
 
 .message {
@@ -408,17 +470,21 @@ p {
 }
 
 .composer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
   margin-top: 12px;
-  padding: 12px;
+  padding: 10px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: #fff;
-  color: var(--muted);
-  font-size: 13px;
+}
+
+.composer input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
 }
 
 .composer button {
@@ -476,30 +542,30 @@ p {
   color: var(--teal);
 }
 
-.launch-panel {
+.pitch-panel {
   max-width: 640px;
 }
 
-.launch-panel h2 {
+.pitch-panel h2 {
   margin-bottom: 18px;
   font-size: clamp(40px, 5vw, 72px);
   line-height: 0.95;
 }
 
-.launch-panel > p {
+.pitch-panel > p {
   max-width: 570px;
   font-size: 18px;
 }
 
-.launch-grid {
+.pitch-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-top: 26px;
 }
 
-.launch-grid article,
-.next-step-card {
+.pitch-grid article,
+.demo-script {
   display: grid;
   gap: 10px;
   min-height: 144px;
@@ -509,20 +575,20 @@ p {
   background: rgba(255, 255, 255, 0.64);
 }
 
-.launch-grid span,
-.next-step-card span {
+.pitch-grid span,
+.demo-script span {
   color: var(--muted);
   line-height: 1.45;
 }
 
-.next-step-card {
+.demo-script {
   min-height: auto;
   margin-top: 12px;
   background: #17211f;
   color: #fff;
 }
 
-.next-step-card span {
+.demo-script span {
   color: rgba(255, 255, 255, 0.72);
 }
 
@@ -549,7 +615,7 @@ p {
 }
 
 @media (max-width: 860px) {
-  .page-shell {
+  .demo-shell {
     min-height: auto;
     grid-template-columns: 1fr;
     padding: 16px;
@@ -562,16 +628,16 @@ p {
     margin: 0 auto;
   }
 
-  .launch-panel {
+  .pitch-panel {
     order: -1;
     max-width: none;
   }
 
-  .launch-panel h2 {
+  .pitch-panel h2 {
     font-size: 42px;
   }
 
-  .launch-grid {
+  .pitch-grid {
     grid-template-columns: 1fr;
   }
 }

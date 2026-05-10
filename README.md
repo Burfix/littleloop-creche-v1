@@ -14,12 +14,13 @@ Open:
 
 ## V1 Includes
 
+- Role picker for client pitch mode
 - Parent daily timeline
 - Private moments gallery
 - Billing and receipt view
-- Teacher quick actions
+- Teacher quick actions that update parent timeline
 - Owner dashboard
-- Role switching
+- Role switching and browser-persisted demo state
 
 ## Deployment
 
@@ -29,4 +30,3 @@ This is a static site. Deploy it as a DigitalOcean App Platform static site with
 - Output directory: `/`
 - Build command: leave blank
 - Run command: none
-
