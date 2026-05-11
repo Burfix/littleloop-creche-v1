@@ -22,6 +22,7 @@ Local demo URL:
 
 ## Demo Flow
 
+0. Open by saying: "Pebble Stones already gives children a warm daily experience. This app lets parents feel that care while they are at work."
 1. Choose Parent: show private verified Pebblestones updates and timeline.
 2. Tap Moments: explain this replaces WhatsApp photo sharing.
 3. Tap Billing: show invoices, receipts, and proof upload.

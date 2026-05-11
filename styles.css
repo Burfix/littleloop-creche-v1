@@ -616,7 +616,8 @@ p {
 }
 
 .pitch-grid article,
-.demo-script {
+.demo-script,
+.client-close {
   display: grid;
   gap: 10px;
   min-height: 144px;
@@ -627,20 +628,27 @@ p {
 }
 
 .pitch-grid span,
-.demo-script span {
+.demo-script span,
+.client-close span {
   color: var(--muted);
   line-height: 1.45;
 }
 
-.demo-script {
+.demo-script,
+.client-close {
   min-height: auto;
   margin-top: 12px;
   background: #17211f;
   color: #fff;
 }
 
-.demo-script span {
+.demo-script span,
+.client-close span {
   color: rgba(255, 255, 255, 0.72);
+}
+
+.client-close {
+  background: var(--teal);
 }
 
 .toast {
