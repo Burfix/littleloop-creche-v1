@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LittleLoop Client Demo</title>
+    <title>Pebblestones LittleLoop Demo</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -16,16 +16,16 @@
 
         <header class="app-header">
           <div>
-            <p class="eyebrow">LittleLoop</p>
+            <p class="eyebrow">Pebblestones</p>
             <h1 id="screen-title">Parent daily view</h1>
           </div>
           <button class="reset-button" id="reset-demo">Reset</button>
         </header>
 
         <section class="login-panel" id="login-panel">
-          <p class="eyebrow">Client pitch demo</p>
-          <h2>Choose how the creche sees the app.</h2>
-          <p>Switch roles during the pitch to show the same day from each user's point of view.</p>
+          <p class="eyebrow">Pebblestones pitch demo</p>
+          <h2>One mobile portal for parents, teachers, and the owner.</h2>
+          <p>Built around five classes, two teachers per class, and up to 20 children per room.</p>
           <div class="login-actions">
             <button data-login="parent">Parent</button>
             <button data-login="teacher">Teacher</button>
@@ -45,7 +45,7 @@
               <div>
                 <p class="eyebrow light">Verified update</p>
                 <h2 id="parent-summary">Mila is safe and settled.</h2>
-                <p>Updates are visible only to approved guardians.</p>
+                <p>Pebblestones updates are visible only to approved guardians.</p>
               </div>
               <div class="avatar">M</div>
             </article>
@@ -81,8 +81,8 @@
             </section>
             <article class="plain-card">
               <p class="eyebrow">Photo privacy</p>
-              <h3>No more whole-school WhatsApp photo dumps.</h3>
-              <p>Teachers tag children before publishing. Parents only see their own child.</p>
+              <h3>No more whole-creche WhatsApp photo dumps.</h3>
+              <p>Pebblestones teachers tag children before publishing. Parents only see their own child.</p>
             </article>
           </section>
 
@@ -119,11 +119,11 @@
           <section class="screen" data-screen="teacher-home">
             <article class="hero-card teacher">
               <div>
-                <p class="eyebrow light">Blue Room</p>
-                <h2>18 children checked in.</h2>
+                <p class="eyebrow light">2-3 yr class</p>
+                <h2>18 of 20 children checked in.</h2>
                 <p>Tap once during the day. Parents get verified updates.</p>
               </div>
-              <div class="avatar">18</div>
+              <div class="avatar">2T</div>
             </article>
             <section class="teacher-actions" id="teacher-actions"></section>
             <section class="section-block">
@@ -137,14 +137,23 @@
 
           <section class="screen" data-screen="owner-home">
             <section class="stat-grid two">
+              <article><span>Capacity</span><strong>100</strong><p>5 classes x 20 kids</p></article>
+              <article><span>Staffing</span><strong>10+</strong><p>At least 2 teachers per class</p></article>
               <article><span>Collected</span><strong id="collected-stat">R42,600</strong><p>May to date</p></article>
               <article><span>Outstanding</span><strong id="outstanding-stat">R8,900</strong><p id="family-stat">7 families</p></article>
             </section>
             <article class="owner-card">
               <p class="eyebrow light">Business cockpit</p>
-              <h2>Less admin, more trust.</h2>
-              <p>Billing, consent, parent updates, and pickup records are in one place.</p>
+              <h2>Pebblestones operations in one place.</h2>
+              <p>Billing, consent, parent updates, pickup records, classes, and staff are visible together.</p>
             </article>
+            <section class="section-block">
+              <div class="section-heading">
+                <h3>Class setup</h3>
+                <span>5 rooms</span>
+              </div>
+              <div class="class-list" id="class-list"></div>
+            </section>
             <section class="section-block">
               <div class="section-heading">
                 <h3>Owner actions</h3>
@@ -168,17 +177,17 @@
       </section>
 
       <aside class="pitch-panel">
-        <p class="eyebrow">First-client pitch</p>
-        <h2>Replace WhatsApp photo chaos and receipt books with one trusted parent portal.</h2>
+        <p class="eyebrow">Pebblestones pitch</p>
+        <h2>A mobile web app for Pebblestones parents, teachers, and admin.</h2>
         <p>
-          This working demo shows the core loop: teachers log the day, parents see private verified
-          updates, and the creche owner gets cleaner billing and records.
+          This working demo is tailored to five Pebblestones classes: 3 months-1 year,
+          1-2 years, 2-3 years, 4-5 years, with at least two teachers and up to 20 children per class.
         </p>
         <div class="pitch-grid">
           <article><strong>Pain solved</strong><span>Photos, notices, billing, receipts, pickup records, and parent messages.</span></article>
-          <article><strong>Why parents return</strong><span>They open it to see their child's day, not because the app nags them.</span></article>
+          <article><strong>Class coverage</strong><span>Five age-group rooms, capacity tracking, teacher assignment, and parent access.</span></article>
           <article><strong>Why staff use it</strong><span>Fast buttons, no double admin, and day summaries generated from logs.</span></article>
-          <article><strong>How to start</strong><span>Pilot one classroom for two weeks, then roll out billing and receipts.</span></article>
+          <article><strong>How to start</strong><span>Pilot the 2-3 year class for two weeks, then roll out room by room.</span></article>
         </div>
         <section class="demo-script">
           <strong>Three-minute pitch flow</strong>

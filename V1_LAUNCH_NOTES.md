@@ -1,4 +1,4 @@
-# LittleLoop V1 Launch Notes
+# Pebblestones LittleLoop V1 Launch Notes
 
 Local demo URL:
 
@@ -7,6 +7,7 @@ Local demo URL:
 ## What V1 Includes
 
 - Client pitch role picker.
+- Pebblestones setup: 5 classes, at least 2 teachers per class, max 20 children per class.
 - Parent home view with verified daily update.
 - Parent timeline for arrival, meals, activities, and nap.
 - Private moments gallery.
@@ -19,12 +20,12 @@ Local demo URL:
 
 ## Demo Flow
 
-1. Choose Parent: show private verified updates and timeline.
+1. Choose Parent: show private verified Pebblestones updates and timeline.
 2. Tap Moments: explain this replaces WhatsApp photo sharing.
 3. Tap Billing: show invoices, receipts, and proof upload.
-4. Switch to Teacher: tap a quick action and show how it adds to the timeline.
+4. Switch to Teacher: show the 2-3 year class and tap a quick action.
 5. Switch back to Parent: show the new update at the top.
-6. Switch to Owner: show billing visibility, consent, and admin records.
+6. Switch to Owner: show class capacity, teacher coverage, billing visibility, consent, and admin records.
 
 ## V1 Product Promise
 

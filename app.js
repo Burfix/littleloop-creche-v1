@@ -23,6 +23,14 @@ const initialState = {
   remindersSent: false,
 };
 
+const pebblestonesClasses = [
+  ["3 months-1 year", 16, 2],
+  ["1-2 yr", 18, 2],
+  ["2-3 yr", 18, 2],
+  ["3-4 yr", 17, 2],
+  ["4-5 yr", 19, 2],
+];
+
 let state = loadState();
 
 const roleTabs = document.querySelectorAll(".role-tab");
@@ -35,7 +43,7 @@ const appPanel = document.querySelector("#app-panel");
 
 const roleConfig = {
   parent: {
-    title: "Parent daily view",
+    title: "Pebblestones parent",
     screen: "parent-home",
     nav: [
       ["Home", "parent-home"],
@@ -45,7 +53,7 @@ const roleConfig = {
     ],
   },
   teacher: {
-    title: "Teacher capture view",
+    title: "Pebblestones teacher",
     screen: "teacher-home",
     nav: [
       ["Class", "teacher-home"],
@@ -55,7 +63,7 @@ const roleConfig = {
     ],
   },
   owner: {
-    title: "Owner admin view",
+    title: "Pebblestones owner",
     screen: "owner-home",
     nav: [
       ["Overview", "owner-home"],
@@ -183,6 +191,19 @@ function renderTeacher() {
 function renderOwner() {
   document.querySelector("#outstanding-stat").textContent = state.invoicePaid ? "R7,050" : "R8,900";
   document.querySelector("#family-stat").textContent = state.remindersSent ? "Reminders sent" : "7 families";
+  document.querySelector("#class-list").innerHTML = pebblestonesClasses
+    .map(
+      ([name, children, teachers]) => `
+        <article>
+          <div>
+            <strong>${name}</strong>
+            <span>${teachers} teachers assigned</span>
+          </div>
+          <em>${children}/20</em>
+        </article>
+      `
+    )
+    .join("");
 }
 
 function setRole(role) {
@@ -257,7 +278,7 @@ document.querySelector("#reset-demo").addEventListener("click", () => {
   localStorage.removeItem("littleloop-demo");
   loginPanel.classList.remove("hidden");
   appPanel.classList.add("hidden");
-  screenTitle.textContent = "Parent daily view";
+  screenTitle.textContent = "Pebblestones parent";
   showToast("Demo reset");
 });
 

@@ -1,6 +1,6 @@
-# LittleLoop V1
+# Pebblestones LittleLoop Demo
 
-Mobile-first creche communication demo.
+Mobile-first creche communication demo tailored for Pebblestones.
 
 ## Live Demo Locally
 
@@ -15,6 +15,7 @@ Open:
 ## V1 Includes
 
 - Role picker for client pitch mode
+- Pebblestones class setup for five age groups
 - Parent daily timeline
 - Private moments gallery
 - Billing and receipt view

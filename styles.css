@@ -428,10 +428,45 @@ p {
 }
 
 .list article,
+.class-list article,
 .owner-actions button {
   padding: 13px;
   border-radius: 16px;
   background: rgba(23, 33, 31, 0.04);
+}
+
+.class-list {
+  display: grid;
+  gap: 8px;
+}
+
+.class-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.class-list strong,
+.class-list span {
+  display: block;
+}
+
+.class-list span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.class-list em {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: var(--mint);
+  color: var(--teal);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
 }
 
 .owner-actions button {
