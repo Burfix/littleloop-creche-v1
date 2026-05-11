@@ -26,7 +26,7 @@ Local demo URL:
 1. Choose Parent: show private verified Pebblestones updates and timeline.
 2. Tap Moments: explain this replaces WhatsApp photo sharing.
 3. Tap Billing: show invoices, receipts, and proof upload.
-4. Switch to Teacher: show the 2-3 year class and tap a quick action.
+4. Switch to Teacher: show the 1-2 year class and tap a quick action.
 5. Switch back to Parent: show the new update at the top.
 6. Switch to Owner: show class capacity, teacher coverage, billing visibility, consent, and admin records.
 
