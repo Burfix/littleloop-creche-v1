@@ -8,6 +8,8 @@ Local demo URL:
 
 - Client pitch role picker.
 - Pebblestones setup: 5 classes, at least 2 teachers per class, max 20 children per class.
+- Pebblestones website positioning: friendly family, home away from home, trained teachers, healthy meals, safe environment, learning through play.
+- Daily rhythm from the website: free play, breakfast, toilet routine, greetings/theme discussion, creative activity, snack, outside play, music and movement, story time.
 - Parent home view with verified daily update.
 - Parent timeline for arrival, meals, activities, and nap.
 - Private moments gallery.

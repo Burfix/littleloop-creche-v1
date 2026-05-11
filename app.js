@@ -1,21 +1,25 @@
+const DEMO_VERSION = "pebblestones-website-fit-v1";
+
 const initialState = {
+  version: DEMO_VERSION,
   activeRole: "parent",
   activeScreen: "parent-home",
   timeline: [
-    { time: "07:41", title: "Checked in", meta: "Signed by Mom at the front gate", type: "check" },
-    { time: "09:10", title: "Breakfast", meta: "Ate most of porridge and fruit", type: "meal" },
-    { time: "10:15", title: "Painting shapes", meta: "Photo verified by Teacher Naledi", type: "photo" },
-    { time: "12:05", title: "Lunch", meta: "Finished pasta, skipped carrots", type: "meal" },
-    { time: "13:02", title: "Nap started", meta: "Settled quickly after story time", type: "nap" },
+    { time: "07:41", title: "Free play check-in", meta: "Signed in during the 06:00-08:00 arrival window", type: "check" },
+    { time: "08:10", title: "Breakfast", meta: "Oats served from the Pebblestones healthy meal menu", type: "meal" },
+    { time: "08:45", title: "Weather, greetings & theme", meta: "Joined the morning discussion with Teacher Naledi", type: "note" },
+    { time: "09:10", title: "Creative activity", meta: "Painting shapes and table activities", type: "photo" },
+    { time: "10:30", title: "Outside play", meta: "Supervised playground and gross motor time", type: "play" },
+    { time: "11:15", title: "Story time", meta: "Settled after music and movement activities", type: "note" },
   ],
-  moments: ["Painting shapes", "Lunch finished", "Garden play", "Nap time"],
+  moments: ["Creative activity", "Outside play", "Music & movement", "Story time"],
   receipts: [
     ["April fees", "Paid R1,850"],
     ["March fees", "Paid R1,850"],
     ["Registration", "Paid R600"],
   ],
   chat: [
-    ["teacher", "Mila ate most of lunch and asked for more water."],
+    ["teacher", "Mila enjoyed outside play and asked for more water."],
     ["parent", "Thank you. Please keep her sunhat on outside."],
     ["teacher", "Done. It is in her cubby for pickup."],
   ],
@@ -24,11 +28,11 @@ const initialState = {
 };
 
 const pebblestonesClasses = [
-  ["3 months-1 year", 16, 2],
-  ["1-2 yr", 18, 2],
-  ["2-3 yr", 18, 2],
-  ["3-4 yr", 17, 2],
-  ["4-5 yr", 19, 2],
+  ["Babies: 3 months-1 year", 16, 2],
+  ["Toddlers: 1-2 yr", 18, 2],
+  ["Toddlers: 2-3 yr", 18, 2],
+  ["Preschoolers: 3-4 yr", 17, 2],
+  ["Preschoolers: 4-5 yr", 19, 2],
 ];
 
 let state = loadState();
@@ -75,17 +79,19 @@ const roleConfig = {
 };
 
 const teacherActions = [
-  ["Breakfast", "Ate most of breakfast", "meal"],
-  ["Nap ended", "Slept 1h 20m and woke happy", "nap"],
-  ["Photo moment", "Garden play photo verified", "photo"],
-  ["Incident", "Minor bump logged, parent notified", "incident"],
-  ["Pickup", "Grandmother approved for pickup", "check"],
-  ["Summary", "Day summary sent to guardians", "note"],
+  ["Toilet routine", "08:30 routine completed with teacher support", "check"],
+  ["Creative activity", "Arts and craft photo verified", "photo"],
+  ["Snack time", "Fresh fruit snack served", "meal"],
+  ["Outside play", "Playground gross motor activity logged", "play"],
+  ["Music & movement", "Joined singing and movement circle", "note"],
+  ["Story time", "Settled for stories before rest time", "note"],
 ];
 
 function loadState() {
   const saved = localStorage.getItem("littleloop-demo");
-  return saved ? JSON.parse(saved) : structuredClone(initialState);
+  if (!saved) return structuredClone(initialState);
+  const parsed = JSON.parse(saved);
+  return parsed.version === DEMO_VERSION ? parsed : structuredClone(initialState);
 }
 
 function saveState() {
@@ -138,7 +144,7 @@ function renderTimeline() {
   document.querySelector("#parent-summary").textContent =
     state.timeline.some((event) => event.type === "incident")
       ? "Mila has one new care note."
-      : "Mila is safe and settled.";
+      : "Mila is thriving at Pebblestones.";
 }
 
 function renderMoments() {

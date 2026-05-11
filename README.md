@@ -16,6 +16,7 @@ Open:
 
 - Role picker for client pitch mode
 - Pebblestones class setup for five age groups
+- Pebblestones website-aligned language and daily routine
 - Parent daily timeline
 - Private moments gallery
 - Billing and receipt view

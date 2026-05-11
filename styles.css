@@ -6,9 +6,9 @@
   --teal: #0f766e;
   --teal-dark: #12423e;
   --mint: #d9f2e7;
-  --coral: #eb705f;
-  --gold: #f2b84b;
-  --blue: #4c9fd8;
+  --coral: #f06f5f;
+  --gold: #f7c64b;
+  --blue: #51a7dc;
   --line: rgba(23, 33, 31, 0.12);
   --shadow: 0 24px 70px rgba(22, 34, 31, 0.18);
 }
@@ -367,6 +367,10 @@ p {
 
 .timeline-item.incident {
   border-left-color: #d36a2f;
+}
+
+.timeline-item.play {
+  border-left-color: #63a85d;
 }
 
 .timeline-item time {
