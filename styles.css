@@ -20,6 +20,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-x: hidden;
   font-family: Arial, Helvetica, sans-serif;
   color: var(--ink);
   background:
@@ -55,6 +56,8 @@ button {
 
 .phone {
   position: relative;
+  display: flex;
+  flex-direction: column;
   height: 860px;
   max-height: calc(100vh - 64px);
   min-height: 720px;
@@ -146,10 +149,19 @@ p {
 }
 
 .login-panel {
-  height: calc(100% - 92px);
+  flex: 1;
   display: grid;
   align-content: center;
   gap: 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-panel {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .login-panel h2 {
@@ -200,8 +212,11 @@ p {
 
 .screen {
   display: none;
-  height: calc(100% - 174px);
+  min-height: 0;
+  flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding-bottom: 20px;
 }
 
@@ -553,10 +568,7 @@ p {
 }
 
 .bottom-nav {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  flex: 0 0 76px;
   height: 76px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -662,8 +674,8 @@ p {
 
   .phone {
     width: min(100%, 410px);
-    height: 780px;
-    min-height: 720px;
+    height: min(820px, calc(100vh - 32px));
+    min-height: 620px;
     margin: 0 auto;
   }
 
