@@ -13,9 +13,9 @@ import type { Admission, Child, CockpitStats, Invoice, MedicalRecord, JournalEnt
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { BarChart2, Bell, BookOpen, ClipboardList, CreditCard, List, Settings, LogOut, Stethoscope, TrendingUp, UserCheck } from "lucide-react";
+import { BarChart2, Bell, BookOpen, ClipboardList, CreditCard, FileText, List, Settings, LogOut, Stethoscope, TrendingUp, UserCheck } from "lucide-react";
 
-type Tab = "overview" | "admissions" | "waitlist" | "medical" | "journal" | "billing" | "analytics" | "hr" | "settings";
+type Tab = "overview" | "admissions" | "waitlist" | "medical" | "journal" | "billing" | "analytics" | "hr" | "reports" | "settings";
 
 export default function OwnerDashboard() {
   const { appUser, firebaseUser, signOut } = useAuth();
@@ -310,6 +310,10 @@ export default function OwnerDashboard() {
           <BillingPanel schoolId={school.id} schoolName={school.name} firebaseUser={firebaseUser} />
         )}
 
+        {tab === "reports" && school && (
+          <ReportsPanel schoolId={school.id} firebaseUser={firebaseUser} />
+        )}
+
         {tab === "hr" && school && (
           <HrPanel schoolId={school.id} firebaseUser={firebaseUser} />
         )}
@@ -390,6 +394,7 @@ export default function OwnerDashboard() {
           { id: "billing", Icon: CreditCard, label: "Billing" },
           { id: "analytics", Icon: TrendingUp, label: "Analytics" },
           { id: "hr", Icon: UserCheck, label: "HR" },
+          { id: "reports", Icon: FileText, label: "Reports" },
           { id: "settings", Icon: Settings, label: "Settings" },
         ] as const).map(({ id, Icon, label }) => (
           <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
@@ -2242,6 +2247,164 @@ function HrPanel({ schoolId, firebaseUser }: { schoolId: string; firebaseUser: U
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Reports Panel ────────────────────────────────────────────────────────────
+
+function ReportsPanel({ schoolId, firebaseUser }: { schoolId: string; firebaseUser: User | null }) {
+  const [month, setMonth] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [children, setChildren] = useState<Child[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState<string | null>(null);
+
+  async function getToken() { return firebaseUser?.getIdToken() ?? ""; }
+
+  useEffect(() => {
+    if (!schoolId || !firebaseUser) return;
+    import("@/lib/db").then(({ getChildrenForSchool }) => getChildrenForSchool(schoolId))
+      .then(c => { setChildren(c); setLoading(false); });
+  }, [schoolId, firebaseUser]);
+
+  async function downloadReport(url: string, filename: string, key: string) {
+    setGenerating(key);
+    try {
+      const token = await getToken();
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? "Failed");
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast.success("Report downloaded");
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to generate report");
+    } finally {
+      setGenerating(null);
+    }
+  }
+
+  const cardStyle: React.CSSProperties = {
+    borderRadius: 14, border: "1px solid var(--border)", padding: 18,
+    background: "var(--surface)", display: "flex", flexDirection: "column", gap: 10,
+  };
+  const btnStyle = (disabled: boolean): React.CSSProperties => ({
+    padding: "11px 0", borderRadius: 10, background: disabled ? "var(--surface-2)" : "var(--primary)",
+    color: disabled ? "var(--text-muted)" : "#fff", border: "none",
+    fontWeight: 700, fontSize: 14, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.7 : 1,
+  });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: 32 }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Reports</h2>
+
+      {/* Month picker */}
+      <div style={{ borderRadius: 12, border: "1px solid var(--border)", padding: 14, background: "var(--surface)", display: "flex", alignItems: "center", gap: 12 }}>
+        <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)" }}>Report Month</label>
+        <input
+          type="month"
+          value={month}
+          onChange={e => setMonth(e.target.value)}
+          style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 14, background: "var(--surface)", color: "var(--text)", cursor: "pointer" }}
+        />
+      </div>
+
+      {/* Attendance Report */}
+      <div style={cardStyle}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 22 }}>📅</span>
+          <div>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>Attendance Report</p>
+            <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+              Monthly attendance rates per learner — days present, absent, and overall rate.
+            </p>
+          </div>
+        </div>
+        <button
+          style={btnStyle(generating === "attendance")}
+          disabled={generating === "attendance"}
+          onClick={() => downloadReport(
+            `/api/reports/attendance?month=${month}`,
+            `attendance-${month}.pdf`,
+            "attendance"
+          )}
+        >
+          {generating === "attendance" ? "Generating…" : "⬇ Download Attendance PDF"}
+        </button>
+      </div>
+
+      {/* Billing Report */}
+      <div style={cardStyle}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 22 }}>💰</span>
+          <div>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>Billing Report</p>
+            <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+              Monthly revenue summary — collected, outstanding, and overdue per child.
+            </p>
+          </div>
+        </div>
+        <button
+          style={btnStyle(generating === "billing")}
+          disabled={generating === "billing"}
+          onClick={() => downloadReport(
+            `/api/reports/billing?month=${month}`,
+            `billing-${month}.pdf`,
+            "billing"
+          )}
+        >
+          {generating === "billing" ? "Generating…" : "⬇ Download Billing PDF"}
+        </button>
+      </div>
+
+      {/* Child Profile Reports */}
+      <div style={cardStyle}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 22 }}>👤</span>
+          <div>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>Child Profile Reports</p>
+            <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+              Full profile including medical info, allergies, medications, and emergency contacts.
+            </p>
+          </div>
+        </div>
+        {loading ? (
+          <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Loading children…</p>
+        ) : children.length === 0 ? (
+          <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>No children enrolled.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 280, overflowY: "auto" }}>
+            {children.map(child => {
+              const key = `child-${child.id}`;
+              return (
+                <div key={child.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-2)" }}>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>{child.firstName} {child.lastName}</span>
+                  <button
+                    onClick={() => downloadReport(
+                      `/api/reports/child/${child.id}`,
+                      `profile-${child.firstName}-${child.lastName}.pdf`.toLowerCase().replace(/\s+/g, "-"),
+                      key
+                    )}
+                    disabled={generating === key}
+                    style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: generating === key ? "var(--surface)" : "var(--primary)", color: generating === key ? "var(--text-muted)" : "#fff", fontWeight: 700, fontSize: 12, cursor: generating === key ? "not-allowed" : "pointer" }}
+                  >
+                    {generating === key ? "…" : "⬇ PDF"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

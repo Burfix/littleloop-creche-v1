@@ -12,6 +12,7 @@
     "firebase:deploy:rules": "FIREBASE_CLI_DISABLE_UPDATE_CHECK=true firebase deploy --only firestore:rules,firestore:indexes,storage"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.5.1",
     "date-fns": "^4.4.0",
     "firebase": "^12.15.0",
     "firebase-admin": "^12.7.0",
