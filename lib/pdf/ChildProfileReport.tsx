@@ -75,7 +75,7 @@ export function ChildProfileReport({ schoolName, child, medical, parentNames, ge
                   </View>
                   {medical.allergies.map((a, i) => (
                     <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
-                      <Text style={{ ...styles.tableCellBold, flex: 2 }}>{a.allergen}</Text>
+                      <Text style={{ ...styles.tableCellBold, flex: 2 }}>{a.name}</Text>
                       <Text style={{ ...styles.tableCell, color: a.severity === "severe" ? "#dc2626" : a.severity === "moderate" ? "#d97706" : "#16a34a", fontFamily: "Helvetica-Bold" }}>
                         {a.severity}
                       </Text>
@@ -99,7 +99,7 @@ export function ChildProfileReport({ schoolName, child, medical, parentNames, ge
                   {medical.medications.map((m, i) => (
                     <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
                       <Text style={{ ...styles.tableCellBold, flex: 2 }}>{m.name}</Text>
-                      <Text style={styles.tableCell}>{m.dosage ?? "—"}</Text>
+                      <Text style={styles.tableCell}>{m.dose ?? "—"}</Text>
                       <Text style={styles.tableCell}>{m.frequency ?? "—"}</Text>
                       <Text style={{ ...styles.tableCell, flex: 2 }}>{m.instructions ?? "—"}</Text>
                     </View>
@@ -119,9 +119,9 @@ export function ChildProfileReport({ schoolName, child, medical, parentNames, ge
 
             <View style={[styles.infoGrid, { marginTop: 10 }]}>
               <InfoItem label="Blood Type" value={medical.bloodType} />
-              <InfoItem label="Dietary Requirements" value={medical.dietaryRequirements?.join(", ")} />
-              <InfoItem label="GP / Doctor" value={medical.gpName} />
-              <InfoItem label="Doctor Phone" value={medical.gpPhone} />
+              <InfoItem label="Dietary Requirements" value={medical.dietary ? Object.entries(medical.dietary).filter(([k,v]) => v === true).map(([k]) => k.replace(/([A-Z])/g," $1").trim()).join(", ") || undefined : undefined} />
+              <InfoItem label="GP / Doctor" value={medical.doctorName} />
+              <InfoItem label="Doctor Phone" value={medical.doctorPhone} />
             </View>
           </>
         )}
@@ -142,8 +142,8 @@ export function ChildProfileReport({ schoolName, child, medical, parentNames, ge
                   <Text style={{ ...styles.tableCellBold, flex: 2 }}>{ec.name}</Text>
                   <Text style={styles.tableCell}>{ec.relationship}</Text>
                   <Text style={{ ...styles.tableCell, flex: 2 }}>{ec.phone}</Text>
-                  <Text style={{ ...styles.tableCell, color: ec.authorisedPickup ? "#16a34a" : "#dc2626", fontFamily: "Helvetica-Bold" }}>
-                    {ec.authorisedPickup ? "Yes" : "No"}
+                  <Text style={{ ...styles.tableCell, color: ec.canPickup ? "#16a34a" : "#dc2626", fontFamily: "Helvetica-Bold" }}>
+                    {ec.canPickup ? "Yes" : "No"}
                   </Text>
                 </View>
               ))}
