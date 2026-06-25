@@ -302,74 +302,8 @@ export default function OwnerDashboard() {
           <OwnerJournalPanel schoolId={school?.id ?? ""} />
         )}
 
-        {tab === "billing" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{currentMonth}</h3>
-              <button className="btn btn-secondary" style={{ fontSize: 12, padding: "8px 12px" }}>
-                Export PDF
-              </button>
-            </div>
-
-            {monthInvoices.length === 0 ? (
-              <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No invoices this month yet.</p>
-            ) : monthInvoices.map(inv => (
-              <div key={inv.id} className="card">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <p style={{ margin: "0 0 2px", fontWeight: 600, fontSize: 14 }}>
-                      {inv.childId}
-                    </p>
-                    <p style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-                      R{(inv.amountCents / 100).toLocaleString()}
-                    </p>
-                  </div>
-                  <span className={`pill ${
-                    inv.status === "paid" ? "pill-green" :
-                    inv.status === "overdue" ? "pill-red" : "pill-amber"
-                  }`}>
-                    {inv.status}
-                  </span>
-                </div>
-
-                {inv.proofUrl && inv.status !== "paid" && (
-                  <div style={{ marginTop: 10 }}>
-                    <p style={{ margin: "0 0 6px", fontSize: 12, color: "var(--text-muted)" }}>
-                      Proof uploaded — verify payment
-                    </p>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button
-                        className="btn btn-primary"
-                        style={{ flex: 1, fontSize: 13, padding: "8px" }}
-                        onClick={async () => {
-                          await updateInvoiceStatus(inv.id, "paid");
-                          setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: "paid" } : i));
-                          toast.success("Marked as paid");
-                        }}
-                      >
-                        Confirm paid
-                      </button>
-                      <a href={inv.proofUrl} target="_blank" rel="noopener noreferrer"
-                        className="btn btn-secondary" style={{ flex: 1, fontSize: 13, padding: "8px" }}>
-                        View proof
-                      </a>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {hasMoreInvoices && (
-              <button
-                className="btn btn-secondary"
-                style={{ width: "100%", fontSize: 13 }}
-                onClick={loadMoreInvoices}
-                disabled={loadingInvoices}
-              >
-                {loadingInvoices ? <span className="spinner" /> : "Load more invoices"}
-              </button>
-            )}
-          </div>
+        {tab === "billing" && school && (
+          <BillingPanel schoolId={school.id} schoolName={school.name} firebaseUser={firebaseUser} />
         )}
 
         {/* ── SETTINGS TAB ── */}
@@ -1297,6 +1231,310 @@ function OwnerJournalPanel({ schoolId }: { schoolId: string }) {
               </p>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Billing Panel ────────────────────────────────────────────────────────────
+
+import type { User } from "firebase/auth";
+
+function BillingPanel({
+  schoolId, schoolName, firebaseUser,
+}: { schoolId: string; schoolName: string; firebaseUser: User | null }) {
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<Invoice["status"] | "all">("all");
+  const [showCreate, setShowCreate] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
+  const [children, setChildren] = useState<Child[]>([]);
+  const [sending, setSending] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  // Create form state
+  const [cfChildId, setCfChildId] = useState("");
+  const [cfMonth, setCfMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [cfAmount, setCfAmount] = useState("");
+  const [cfDueDate, setCfDueDate] = useState("");
+  const [cfDesc, setCfDesc] = useState("");
+  const [cfSaving, setCfSaving] = useState(false);
+
+  // Bulk form state
+  const [bfMonth, setBfMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [bfAmount, setBfAmount] = useState("");
+  const [bfDueDate, setBfDueDate] = useState("");
+  const [bfDesc, setBfDesc] = useState("");
+  const [bfSaving, setBfSaving] = useState(false);
+
+  useEffect(() => {
+    if (!schoolId) return;
+    Promise.all([
+      import("@/lib/db").then(({ getInvoicesForSchool }) => getInvoicesForSchool(schoolId)),
+      import("@/lib/db").then(({ getChildrenForSchool }) => getChildrenForSchool(schoolId)),
+    ]).then(([invs, kids]) => {
+      // Auto-detect overdue client-side
+      const today = new Date().toISOString().split("T")[0];
+      const updated = invs.map(inv =>
+        inv.status === "outstanding" && inv.dueDate < today
+          ? { ...inv, status: "overdue" as const }
+          : inv
+      );
+      setInvoices(updated);
+      setChildren(kids);
+      setLoading(false);
+    });
+  }, [schoolId]);
+
+  async function getToken() { return firebaseUser?.getIdToken() ?? ""; }
+
+  async function handleCreate() {
+    if (!cfChildId || !cfMonth || !cfAmount || !cfDueDate) return;
+    setCfSaving(true);
+    try {
+      const token = await getToken();
+      const res = await fetch("/api/invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          childId: cfChildId, month: cfMonth,
+          amountCents: Math.round(parseFloat(cfAmount) * 100),
+          dueDate: cfDueDate, description: cfDesc,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const { invoiceId } = await res.json();
+      const child = children.find(c => c.id === cfChildId);
+      const newInv: Invoice = {
+        id: invoiceId, schoolId, branchId: child?.branchId ?? "",
+        parentId: child?.parentIds?.[0] ?? "", childId: cfChildId,
+        childName: child ? `${child.firstName} ${child.lastName}` : cfChildId,
+        month: cfMonth, description: cfDesc || `Tuition — ${cfMonth}`,
+        amountCents: Math.round(parseFloat(cfAmount) * 100),
+        dueDate: cfDueDate, status: "outstanding",
+        lineItems: [], createdAt: new Date().toISOString(),
+      };
+      setInvoices(prev => [newInv, ...prev]);
+      toast.success("Invoice created");
+      setShowCreate(false);
+      setCfChildId(""); setCfMonth(new Date().toISOString().slice(0, 7));
+      setCfAmount(""); setCfDueDate(""); setCfDesc("");
+    } catch { toast.error("Failed to create invoice"); }
+    finally { setCfSaving(false); }
+  }
+
+  async function handleBulk() {
+    if (!bfMonth || !bfAmount || !bfDueDate) return;
+    setBfSaving(true);
+    try {
+      const token = await getToken();
+      const res = await fetch("/api/invoices/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          month: bfMonth,
+          amountCents: Math.round(parseFloat(bfAmount) * 100),
+          dueDate: bfDueDate, description: bfDesc,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const { created, skipped } = await res.json();
+      toast.success(`${created} invoices created${skipped ? `, ${skipped} skipped (already exist)` : ""}`);
+      setShowBulk(false);
+      // Reload
+      const { getInvoicesForSchool } = await import("@/lib/db");
+      const today = new Date().toISOString().split("T")[0];
+      const invs = (await getInvoicesForSchool(schoolId)).map(inv =>
+        inv.status === "outstanding" && inv.dueDate < today ? { ...inv, status: "overdue" as const } : inv
+      );
+      setInvoices(invs);
+    } catch { toast.error("Failed to generate invoices"); }
+    finally { setBfSaving(false); }
+  }
+
+  async function handleConfirmPaid(inv: Invoice) {
+    setConfirming(inv.id);
+    try {
+      const { updateInvoiceStatus } = await import("@/lib/db");
+      await updateInvoiceStatus(inv.id, "paid");
+      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: "paid" } : i));
+      toast.success("Marked as paid");
+    } catch { toast.error("Failed"); }
+    finally { setConfirming(null); }
+  }
+
+  async function handleRemind(inv: Invoice) {
+    setSending(inv.id);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/invoices/${inv.id}/remind`, {
+        method: "POST", headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast.success("Reminder sent");
+    } catch { toast.error("Failed to send reminder"); }
+    finally { setSending(null); }
+  }
+
+  const filtered = statusFilter === "all" ? invoices : invoices.filter(i => i.status === statusFilter);
+
+  // Counts
+  const counts = { all: invoices.length, outstanding: 0, overdue: 0, paid: 0, draft: 0 };
+  invoices.forEach(i => { counts[i.status] = (counts[i.status] ?? 0) + 1; });
+
+  // Revenue
+  const totalOutstanding = invoices
+    .filter(i => ["outstanding","overdue"].includes(i.status))
+    .reduce((s, i) => s + i.amountCents, 0);
+  const totalPaid = invoices.filter(i => i.status === "paid").reduce((s, i) => s + i.amountCents, 0);
+
+  const inputStyle: React.CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)", color: "var(--text)" };
+  const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: 4 };
+
+  if (loading) return <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading…</div>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: 32 }}>
+
+      {/* Revenue summary */}
+      <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ flex: 1, borderRadius: 12, border: "1px solid var(--border)", padding: 14, background: "var(--surface)", textAlign: "center" }}>
+          <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Outstanding</p>
+          <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#d97706" }}>R{(totalOutstanding / 100).toLocaleString("en-ZA")}</p>
+        </div>
+        <div style={{ flex: 1, borderRadius: 12, border: "1px solid var(--border)", padding: 14, background: "var(--surface)", textAlign: "center" }}>
+          <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase" }}>Collected</p>
+          <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#16a34a" }}>R{(totalPaid / 100).toLocaleString("en-ZA")}</p>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={() => { setShowCreate(true); setShowBulk(false); }} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+          + Create Invoice
+        </button>
+        <button onClick={() => { setShowBulk(true); setShowCreate(false); }} style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid var(--border)", background: "var(--surface)", fontWeight: 700, fontSize: 13, cursor: "pointer", color: "var(--text)" }}>
+          ⚡ Bulk Generate
+        </button>
+      </div>
+
+      {/* Create form */}
+      {showCreate && (
+        <div style={{ borderRadius: 14, border: "2px solid var(--primary)", padding: 16, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>New Invoice</p>
+            <button onClick={() => setShowCreate(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 20 }}>×</button>
+          </div>
+          <div>
+            <label style={labelStyle}>Child</label>
+            <select style={inputStyle} value={cfChildId} onChange={e => setCfChildId(e.target.value)}>
+              <option value="">Select child…</option>
+              {children.map(c => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
+            </select>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Month</label><input style={inputStyle} type="month" value={cfMonth} onChange={e => setCfMonth(e.target.value)} /></div>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Due Date</label><input style={inputStyle} type="date" value={cfDueDate} onChange={e => setCfDueDate(e.target.value)} /></div>
+          </div>
+          <div><label style={labelStyle}>Amount (R)</label><input style={inputStyle} type="number" min="0" step="0.01" placeholder="2500.00" value={cfAmount} onChange={e => setCfAmount(e.target.value)} /></div>
+          <div><label style={labelStyle}>Description (optional)</label><input style={inputStyle} placeholder="Monthly tuition" value={cfDesc} onChange={e => setCfDesc(e.target.value)} /></div>
+          <button onClick={handleCreate} disabled={cfSaving || !cfChildId || !cfAmount || !cfDueDate} style={{ padding: "12px 0", borderRadius: 10, background: "var(--primary)", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer", opacity: (cfSaving || !cfChildId || !cfAmount || !cfDueDate) ? 0.6 : 1 }}>
+            {cfSaving ? "Creating…" : "Create Invoice"}
+          </button>
+        </div>
+      )}
+
+      {/* Bulk form */}
+      {showBulk && (
+        <div style={{ borderRadius: 14, border: "2px solid #d97706", padding: 16, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <div>
+              <p style={{ margin: "0 0 2px", fontWeight: 700, fontSize: 15 }}>Bulk Generate</p>
+              <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>Creates one invoice per enrolled child. Skips existing.</p>
+            </div>
+            <button onClick={() => setShowBulk(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: 20 }}>×</button>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Month</label><input style={inputStyle} type="month" value={bfMonth} onChange={e => setBfMonth(e.target.value)} /></div>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Due Date</label><input style={inputStyle} type="date" value={bfDueDate} onChange={e => setBfDueDate(e.target.value)} /></div>
+          </div>
+          <div><label style={labelStyle}>Amount per child (R)</label><input style={inputStyle} type="number" min="0" step="0.01" placeholder="2500.00" value={bfAmount} onChange={e => setBfAmount(e.target.value)} /></div>
+          <div><label style={labelStyle}>Description (optional)</label><input style={inputStyle} placeholder="Monthly tuition" value={bfDesc} onChange={e => setBfDesc(e.target.value)} /></div>
+          <button onClick={handleBulk} disabled={bfSaving || !bfAmount || !bfDueDate} style={{ padding: "12px 0", borderRadius: 10, background: "#d97706", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer", opacity: (bfSaving || !bfAmount || !bfDueDate) ? 0.6 : 1 }}>
+            {bfSaving ? "Generating…" : `Generate for all ${children.length} children`}
+          </button>
+        </div>
+      )}
+
+      {/* Status filter tabs */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {(["all", "outstanding", "overdue", "paid"] as const).map(s => (
+          <button key={s} onClick={() => setStatusFilter(s)} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: "pointer", border: statusFilter === s ? "2px solid var(--primary)" : "1px solid var(--border)", background: statusFilter === s ? "var(--primary-light)" : "var(--surface-2)", color: statusFilter === s ? "var(--primary)" : "var(--text-muted)" }}>
+            {s.charAt(0).toUpperCase() + s.slice(1)} ({counts[s] ?? 0})
+          </button>
+        ))}
+      </div>
+
+      {/* Invoice list */}
+      {filtered.length === 0 ? (
+        <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No invoices.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {filtered.map(inv => {
+            const isOverdue = inv.status === "overdue";
+            const borderColor = isOverdue ? "#dc2626" : inv.status === "paid" ? "#16a34a" : "var(--border)";
+            return (
+              <div key={inv.id} style={{ borderRadius: 12, border: `1px solid ${borderColor}`, padding: 14, background: "var(--surface)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                  <div>
+                    <p style={{ margin: "0 0 2px", fontWeight: 700, fontSize: 14 }}>{inv.childName}</p>
+                    <p style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>R{(inv.amountCents / 100).toLocaleString("en-ZA")}</p>
+                    <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                      {inv.description ?? `Tuition — ${inv.month}`} · Due {new Date(inv.dueDate).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                    </p>
+                  </div>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20,
+                    background: isOverdue ? "#fee2e2" : inv.status === "paid" ? "#dcfce7" : "#fef3c7",
+                    color: isOverdue ? "#dc2626" : inv.status === "paid" ? "#16a34a" : "#d97706",
+                  }}>
+                    {inv.status.toUpperCase()}
+                  </span>
+                </div>
+
+                {/* Proof uploaded — pending verification */}
+                {inv.proofUrl && inv.status !== "paid" && (
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <button onClick={() => handleConfirmPaid(inv)} disabled={confirming === inv.id} style={{ flex: 1, padding: "8px 0", borderRadius: 8, background: "#16a34a", color: "#fff", border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                      {confirming === inv.id ? "Confirming…" : "✓ Confirm Paid"}
+                    </button>
+                    <a href={inv.proofUrl} target="_blank" rel="noopener noreferrer" style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-2)", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text)", textDecoration: "none" }}>
+                      View Proof
+                    </a>
+                  </div>
+                )}
+
+                {/* Actions for unpaid */}
+                {inv.status !== "paid" && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {!inv.proofUrl && (
+                      <button onClick={() => handleConfirmPaid(inv)} disabled={confirming === inv.id} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-2)", fontWeight: 600, fontSize: 12, cursor: "pointer", color: "var(--text)" }}>
+                        {confirming === inv.id ? "…" : "Mark Paid"}
+                      </button>
+                    )}
+                    <button onClick={() => handleRemind(inv)} disabled={sending === inv.id} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-2)", fontWeight: 600, fontSize: 12, cursor: "pointer", color: "var(--text)" }}>
+                      {sending === inv.id ? "Sending…" : "🔔 Remind"}
+                    </button>
+                  </div>
+                )}
+
+                {inv.status === "paid" && inv.paidAt && (
+                  <p style={{ margin: 0, fontSize: 12, color: "#16a34a" }}>✓ Paid {new Date(inv.paidAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

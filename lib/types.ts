@@ -119,12 +119,16 @@ export interface Invoice {
   branchId: string;
   parentId: string;
   childId: string;
-  month: string; // "2026-05"
+  childName: string;           // denormalised — "First Last"
+  month: string;               // "2026-05"
+  description?: string;        // e.g. "Monthly tuition — July 2026"
   amountCents: number;
   status: InvoiceStatus;
   dueDate: string;
   paidAt?: string;
   proofUrl?: string;
+  proofUploadedAt?: string;
+  notes?: string;              // owner-facing notes
   lineItems: LineItem[];
   createdAt: string;
 }

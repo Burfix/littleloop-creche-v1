@@ -600,3 +600,32 @@ export async function getJournalEntriesForSchool(
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as JournalEntry));
 }
+
+// ─── Billing ──────────────────────────────────────────────────────────────────
+
+export async function createInvoice(
+  data: Omit<Invoice, "id" | "createdAt" | "status">
+): Promise<string> {
+  const ref = await addDoc(collection(db, "invoices"), {
+    ...data,
+    status: "outstanding" as const,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function markInvoiceOverdue(invoiceId: string): Promise<void> {
+  await updateDoc(doc(db, "invoices", invoiceId), { status: "overdue" });
+}
+
+export async function getOverdueInvoicesForSchool(schoolId: string): Promise<Invoice[]> {
+  const today = new Date().toISOString().split("T")[0];
+  const q = query(
+    collection(db, "invoices"),
+    where("schoolId", "==", schoolId),
+    where("status", "in", ["outstanding"]),
+    where("dueDate", "<", today)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Invoice));
+}
