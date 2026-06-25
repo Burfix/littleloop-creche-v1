@@ -454,7 +454,7 @@ function UsersPanel({ schools }: { schools: School[] }) {
 
       // Redirect to their portal
       const dest: Record<string, string> = { owner: "/owner", teacher: "/teacher", parent: "/parent" };
-      router.push(dest[targetRole] ?? "/");
+      window.location.href = dest[targetRole] ?? "/";
     } catch (e: any) {
       import("react-hot-toast").then(({ default: toast }) => toast.error(e.message ?? "Impersonation failed"));
     } finally {

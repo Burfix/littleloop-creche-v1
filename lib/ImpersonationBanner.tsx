@@ -1,15 +1,18 @@
 "use client";
 /**
- * Shown at top of any portal when superadmin is impersonating a user.
- * State stored in sessionStorage — clears when tab closes.
+ * Shown at top of every portal when superadmin is impersonating a user.
+ * Reads from sessionStorage (set by admin page before full-page redirect).
+ * Exit: signs out current session, redirects to /admin.
  */
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { getAuth } from "firebase/auth";
 
 export function ImpersonationBanner() {
-  const router = useRouter();
-  const [info, setInfo] = useState<{ originalUid: string; targetName: string; targetRole: string } | null>(null);
+  const [info, setInfo] = useState<{
+    originalUid: string;
+    targetName: string;
+    targetRole: string;
+  } | null>(null);
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
@@ -19,18 +22,20 @@ export function ImpersonationBanner() {
     } catch {}
   }, []);
 
+  // Also push body down so content isn't hidden behind the banner
+  useEffect(() => {
+    if (info) document.body.style.paddingTop = "42px";
+    else document.body.style.paddingTop = "";
+    return () => { document.body.style.paddingTop = ""; };
+  }, [info]);
+
   if (!info) return null;
 
-  async function exitImpersonation() {
+  async function exit() {
     setLeaving(true);
-    try {
-      sessionStorage.removeItem("impersonating");
-      await getAuth().signOut();
-      router.push("/admin");
-    } catch {
-      sessionStorage.removeItem("impersonating");
-      router.push("/admin");
-    }
+    sessionStorage.removeItem("impersonating");
+    try { await getAuth().signOut(); } catch {}
+    window.location.href = "/admin";
   }
 
   return (
@@ -38,19 +43,30 @@ export function ImpersonationBanner() {
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
       background: "#7c3aed", color: "#fff",
       display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "8px 16px", fontSize: 13, fontWeight: 500,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+      padding: "0 16px", height: 42, fontSize: 13, fontWeight: 500,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
     }}>
-      <span>
-        👁 Viewing as <strong style={{ marginLeft: 4, marginRight: 4 }}>{info.targetName}</strong>
-        <span style={{ opacity: 0.8 }}>({info.targetRole})</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 16 }}>👁</span>
+        Viewing as <strong>{info.targetName}</strong>
+        <span style={{
+          background: "rgba(255,255,255,0.2)", borderRadius: 20,
+          padding: "1px 8px", fontSize: 11, fontWeight: 600,
+        }}>{info.targetRole}</span>
       </span>
-      <button onClick={exitImpersonation} disabled={leaving} style={{
-        background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.4)",
-        color: "#fff", borderRadius: 6, padding: "4px 12px", fontSize: 12,
-        fontWeight: 700, cursor: leaving ? "not-allowed" : "pointer",
-      }}>
-        {leaving ? "Exiting…" : "✕ Exit impersonation"}
+      <button
+        onClick={exit}
+        disabled={leaving}
+        style={{
+          background: "rgba(255,255,255,0.15)",
+          border: "1px solid rgba(255,255,255,0.5)",
+          color: "#fff", borderRadius: 6,
+          padding: "5px 14px", fontSize: 12, fontWeight: 700,
+          cursor: leaving ? "not-allowed" : "pointer",
+          display: "flex", alignItems: "center", gap: 6,
+        }}
+      >
+        {leaving ? "Exiting…" : "✕ Stop impersonating"}
       </button>
     </div>
   );
