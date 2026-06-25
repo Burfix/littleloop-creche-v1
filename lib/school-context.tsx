@@ -2,10 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { getSchoolBySlug, getSchool } from "@/lib/db";
-import { auth, db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
 import { resolveTenantSlugFromHost } from "@/lib/tenant";
+import { useAuth } from "@/lib/auth-context";
 import type { School } from "@/lib/types";
 
 interface SchoolContextValue {
@@ -32,6 +30,7 @@ export function SchoolProvider({
   const [school, setSchool] = useState<School | null>(initialSchool);
   const [loading, setLoading] = useState(!initialSchool);
   const [slug, setSlug] = useState(initialSlug);
+  const { appUser, loading: authLoading } = useAuth();
 
   useEffect(() => {
     const resolvedSlug = initialSlug || resolveTenantSlugFromHost(window.location.host);
@@ -40,37 +39,22 @@ export function SchoolProvider({
       if (initialSchool.primaryColor) {
         document.documentElement.style.setProperty("--brand", initialSchool.primaryColor);
       }
+      setLoading(false);
       return;
     }
 
-    // Wait for Firebase Auth to restore session before slug-or-user lookup
-    const waitForAuth = () =>
-      new Promise<string | null>(resolve => {
-        // If already resolved, use it immediately
-        if (auth.currentUser !== null || (auth as any)._isInitializing === false) {
-          resolve(auth.currentUser?.uid ?? null);
-          return;
-        }
-        const unsub = onAuthStateChanged(auth, user => {
-          unsub();
-          resolve(user?.uid ?? null);
-        });
-      });
+    // Wait until auth context has resolved before attempting school lookup
+    if (authLoading) return;
 
     void (async () => {
       try {
         setSlug(resolvedSlug);
         let s = await getSchoolBySlug(resolvedSlug);
 
-        // Fallback: root domain / no subdomain — load school from the
-        // authenticated user's schoolId once auth session is ready
-        if (!s) {
-          const uid = await waitForAuth();
-          if (uid) {
-            const userSnap = await getDoc(doc(db, "users", uid));
-            const schoolId = userSnap.data()?.schoolId as string | undefined;
-            if (schoolId) s = await getSchool(schoolId);
-          }
+        // Fallback: root domain / no subdomain (e.g. Vercel preview URL or
+        // superadmin impersonating). Load school from authenticated user profile.
+        if (!s && appUser?.schoolId) {
+          s = await getSchool(appUser.schoolId);
         }
 
         setSchool(s);
@@ -81,7 +65,7 @@ export function SchoolProvider({
         setLoading(false);
       }
     })();
-  }, [initialSchool, initialSlug]);
+  }, [initialSchool, initialSlug, appUser, authLoading]);
 
   return (
     <SchoolContext.Provider value={{ school, loading, slug }}>

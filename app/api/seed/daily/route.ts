@@ -321,7 +321,7 @@ export async function POST(req: NextRequest) {
     ];
     for (let i = 0; i < waitlist.length; i++) {
       const e = waitlist[i];
-      wBatch.set(db.collection("waiting_list").doc(`wl_${i + 1}`), {
+      wBatch.set(db.collection("waitlist").doc(`wl_${i + 1}`), {
         id: `wl_${i + 1}`, schoolId: SCHOOL_ID,
         childFirstName: e.first, childLastName: e.last, childDateOfBirth: e.dob,
         parentName: e.parent, parentEmail: e.email, parentPhone: e.phone,
