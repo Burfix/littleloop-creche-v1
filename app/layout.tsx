@@ -1,9 +1,15 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
+import type { CSSProperties, ReactNode } from "react";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { SchoolProvider } from "@/lib/school-context";
 import { ErrorBoundary } from "@/lib/error-boundary";
 import { Toaster } from "react-hot-toast";
+import { getSchoolBySlugServer } from "@/lib/server-school";
+import { resolveTenantSlugFromHost } from "@/lib/tenant";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "LittleLoop",
@@ -19,13 +25,21 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const headerStore = await headers();
+  const host = headerStore.get("host") ?? "";
+  const tenantSlug = headerStore.get("x-littleloop-tenant-slug") ?? resolveTenantSlugFromHost(host);
+  const initialSchool = await getSchoolBySlugServer(tenantSlug);
+  const bodyStyle = initialSchool?.primaryColor
+    ? ({ "--brand": initialSchool.primaryColor } as CSSProperties)
+    : undefined;
+
   return (
     <html lang="en">
-      <body>
+      <body style={bodyStyle}>
         <ErrorBoundary>
           <AuthProvider>
-            <SchoolProvider>
+            <SchoolProvider initialSlug={tenantSlug} initialSchool={initialSchool}>
               {children}
               <Toaster
                 position="top-center"

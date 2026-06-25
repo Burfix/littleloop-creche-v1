@@ -30,5 +30,11 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "app_layout.tsx",
+    "lib_auth-context.tsx",
+    "lib_db.ts",
+    "lib_error-boundary.tsx"
+  ]
 }

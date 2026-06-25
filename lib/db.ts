@@ -10,11 +10,15 @@ import {
   where,
   orderBy,
   limit,
+  startAfter,
   serverTimestamp,
   Timestamp,
   onSnapshot,
   QuerySnapshot,
   DocumentData,
+  QueryConstraint,
+  QueryDocumentSnapshot,
+  getCountFromServer,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type {
@@ -22,12 +26,76 @@ import type {
   Moment, Invoice, Task, Message, CockpitStats,
 } from "./types";
 
+export interface PaginationOptions {
+  pageSize?: number;
+  cursor?: QueryDocumentSnapshot<DocumentData> | null;
+  includePendingErasure?: boolean;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  nextCursor: QueryDocumentSnapshot<DocumentData> | null;
+  hasMore: boolean;
+}
+
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 100;
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function toDate(ts: unknown): string {
   if (!ts) return new Date().toISOString();
   if (ts instanceof Timestamp) return ts.toDate().toISOString();
   if (typeof ts === "string") return ts;
   return new Date().toISOString();
+}
+
+function normalizePageSize(pageSize = DEFAULT_PAGE_SIZE): number {
+  return Math.min(Math.max(pageSize, 1), MAX_PAGE_SIZE);
+}
+
+function withCursor(
+  constraints: QueryConstraint[],
+  cursor?: QueryDocumentSnapshot<DocumentData> | null
+): QueryConstraint[] {
+  return cursor ? [...constraints, startAfter(cursor)] : constraints;
+}
+
+function toChild(snap: QueryDocumentSnapshot<DocumentData>): Child {
+  const d = snap.data();
+  return { ...d, id: snap.id, enrolledAt: toDate(d.enrolledAt) } as Child;
+}
+
+function isActiveChild(child: Child): boolean {
+  return child.deletionStatus !== "pending_erasure";
+}
+
+function toDailyUpdate(snap: QueryDocumentSnapshot<DocumentData>): DailyUpdate {
+  const d = snap.data();
+  return {
+    ...d,
+    id: snap.id,
+    createdAt: toDate(d.createdAt),
+    updatedAt: toDate(d.updatedAt),
+  } as DailyUpdate;
+}
+
+function toInvoice(snap: QueryDocumentSnapshot<DocumentData>): Invoice {
+  const d = snap.data();
+  return { ...d, id: snap.id, createdAt: toDate(d.createdAt) } as Invoice;
+}
+
+function pageFromSnapshot<T>(
+  docs: QueryDocumentSnapshot<DocumentData>[],
+  pageSize: number,
+  mapper: (snap: QueryDocumentSnapshot<DocumentData>) => T
+): PaginatedResult<T> {
+  const visibleDocs = docs.slice(0, pageSize);
+
+  return {
+    items: visibleDocs.map(mapper),
+    nextCursor: visibleDocs.at(-1) ?? null,
+    hasMore: docs.length > pageSize,
+  };
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -86,19 +154,40 @@ export async function getChildrenForClass(schoolId: string, classId: string): Pr
     where("classId", "==", classId)
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ ...d.data(), id: d.id, enrolledAt: toDate(d.data().enrolledAt) } as Child));
+  return snap.docs
+    .map(d => ({ ...d.data(), id: d.id, enrolledAt: toDate(d.data().enrolledAt) } as Child))
+    .filter(isActiveChild);
 }
 
 export async function getChildrenForParent(parentId: string): Promise<Child[]> {
   const q = query(collection(db, "children"), where("parentIds", "array-contains", parentId));
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ ...d.data(), id: d.id, enrolledAt: toDate(d.data().enrolledAt) } as Child));
+  return snap.docs
+    .map(d => ({ ...d.data(), id: d.id, enrolledAt: toDate(d.data().enrolledAt) } as Child))
+    .filter(isActiveChild);
 }
 
 export async function getChildrenForSchool(schoolId: string): Promise<Child[]> {
-  const q = query(collection(db, "children"), where("schoolId", "==", schoolId));
+  const page = await getChildrenForSchoolPage(schoolId);
+  return page.items;
+}
+
+export async function getChildrenForSchoolPage(
+  schoolId: string,
+  options: PaginationOptions = {}
+): Promise<PaginatedResult<Child>> {
+  const pageSize = normalizePageSize(options.pageSize);
+  const q = query(
+    collection(db, "children"),
+    ...withCursor([
+      where("schoolId", "==", schoolId),
+      orderBy("enrolledAt", "desc"),
+      limit(pageSize + 1),
+    ], options.cursor)
+  );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ ...d.data(), id: d.id, enrolledAt: toDate(d.data().enrolledAt) } as Child));
+  const page = pageFromSnapshot(snap.docs, pageSize, toChild);
+  return options.includePendingErasure ? page : { ...page, items: page.items.filter(isActiveChild) };
 }
 
 export async function addChild(data: Omit<Child, "id" | "enrolledAt">): Promise<string> {
@@ -158,19 +247,29 @@ export async function upsertDailyUpdate(data: Omit<DailyUpdate, "id" | "createdA
 }
 
 export async function getDailyUpdatesForClass(schoolId: string, classId: string, date: string): Promise<DailyUpdate[]> {
+  const page = await getDailyUpdatesForClassPage(schoolId, classId, date, { pageSize: MAX_PAGE_SIZE });
+  return page.items;
+}
+
+export async function getDailyUpdatesForClassPage(
+  schoolId: string,
+  classId: string,
+  date: string,
+  options: PaginationOptions = {}
+): Promise<PaginatedResult<DailyUpdate>> {
+  const pageSize = normalizePageSize(options.pageSize);
   const q = query(
     collection(db, "daily_updates"),
-    where("schoolId", "==", schoolId),
-    where("classId", "==", classId),
-    where("date", "==", date)
+    ...withCursor([
+      where("schoolId", "==", schoolId),
+      where("classId", "==", classId),
+      where("date", "==", date),
+      orderBy("childId", "asc"),
+      limit(pageSize + 1),
+    ], options.cursor)
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({
-    ...d.data(),
-    id: d.id,
-    createdAt: toDate(d.data().createdAt),
-    updatedAt: toDate(d.data().updatedAt),
-  } as DailyUpdate));
+  return pageFromSnapshot(snap.docs, pageSize, toDailyUpdate);
 }
 
 // ─── Moments ─────────────────────────────────────────────────────────────────
@@ -207,13 +306,25 @@ export async function getInvoicesForParent(parentId: string): Promise<Invoice[]>
 }
 
 export async function getInvoicesForSchool(schoolId: string): Promise<Invoice[]> {
+  const page = await getInvoicesForSchoolPage(schoolId);
+  return page.items;
+}
+
+export async function getInvoicesForSchoolPage(
+  schoolId: string,
+  options: PaginationOptions = {}
+): Promise<PaginatedResult<Invoice>> {
+  const pageSize = normalizePageSize(options.pageSize);
   const q = query(
     collection(db, "invoices"),
-    where("schoolId", "==", schoolId),
-    orderBy("createdAt", "desc")
+    ...withCursor([
+      where("schoolId", "==", schoolId),
+      orderBy("createdAt", "desc"),
+      limit(pageSize + 1),
+    ], options.cursor)
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ ...d.data(), id: d.id, createdAt: toDate(d.data().createdAt) } as Invoice));
+  return pageFromSnapshot(snap.docs, pageSize, toInvoice);
 }
 
 export async function updateInvoiceStatus(invoiceId: string, status: Invoice["status"], proofUrl?: string): Promise<void> {
@@ -221,6 +332,10 @@ export async function updateInvoiceStatus(invoiceId: string, status: Invoice["st
   if (proofUrl) update.proofUrl = proofUrl;
   if (status === "paid") update.paidAt = serverTimestamp();
   await updateDoc(doc(db, "invoices", invoiceId), update);
+}
+
+export async function updateInvoiceProof(invoiceId: string, proofUrl: string): Promise<void> {
+  await updateDoc(doc(db, "invoices", invoiceId), { proofUrl });
 }
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
@@ -269,8 +384,10 @@ export function subscribeToThread(
 }
 
 export async function sendMessage(data: Omit<Message, "id" | "createdAt">): Promise<void> {
+  const threadChildId = data.threadId.split("_").at(-1);
   await addDoc(collection(db, "messages"), {
     ...data,
+    childId: data.childId ?? threadChildId,
     createdAt: serverTimestamp(),
   });
 }
@@ -278,29 +395,46 @@ export async function sendMessage(data: Omit<Message, "id" | "createdAt">): Prom
 // ─── Cockpit Stats ────────────────────────────────────────────────────────────
 export async function getCockpitStats(schoolId: string): Promise<CockpitStats> {
   const today = new Date().toISOString().split("T")[0];
+  const currentMonth = today.slice(0, 7);
 
-  const [children, invoices, updates, staffSnap] = await Promise.all([
-    getChildrenForSchool(schoolId),
-    getInvoicesForSchool(schoolId),
-    getDocs(query(
+  const [
+    childrenCountSnap,
+    checkedInCountSnap,
+    staffCountSnap,
+    photoConsentCountSnap,
+    monthInvoicesSnap,
+  ] = await Promise.all([
+    getCountFromServer(query(
+      collection(db, "children"),
+      where("schoolId", "==", schoolId)
+    )),
+    getCountFromServer(query(
       collection(db, "daily_updates"),
       where("schoolId", "==", schoolId),
-      where("date", "==", today)
+      where("date", "==", today),
+      where("checkedIn", "==", true)
     )),
-    getDocs(query(
+    getCountFromServer(query(
       collection(db, "users"),
       where("schoolId", "==", schoolId),
       where("role", "==", "teacher")
     )),
+    getCountFromServer(query(
+      collection(db, "children"),
+      where("schoolId", "==", schoolId),
+      where("photoConsent", "==", false)
+    )),
+    getDocs(query(
+      collection(db, "invoices"),
+      where("schoolId", "==", schoolId),
+      where("month", "==", currentMonth)
+    )),
   ]);
-
-  const checkedInToday = updates.docs.filter(d => d.data().checkedIn).length;
 
   const classes = await getClassesForSchool(schoolId);
   const totalCapacity = classes.reduce((sum, c) => sum + c.capacity, 0);
 
-  const currentMonth = today.slice(0, 7);
-  const monthInvoices = invoices.filter(i => i.month === currentMonth);
+  const monthInvoices = monthInvoicesSnap.docs.map(toInvoice);
   const collectedMTD = monthInvoices
     .filter(i => i.status === "paid")
     .reduce((sum, i) => sum + i.amountCents, 0);
@@ -313,20 +447,14 @@ export async function getCockpitStats(schoolId: string): Promise<CockpitStats> {
       .map(i => i.parentId)
   ).size;
 
-  const consentSnap = await getDocs(query(
-    collection(db, "children"),
-    where("schoolId", "==", schoolId),
-    where("photoConsent", "==", false)
-  ));
-
   return {
-    totalChildren: children.length,
-    checkedInToday,
+    totalChildren: childrenCountSnap.data().count,
+    checkedInToday: checkedInCountSnap.data().count,
     totalCapacity,
     collectedMTD,
     outstandingMTD,
     outstandingFamilies,
-    staffCount: staffSnap.size,
-    photoConsentPending: consentSnap.size,
+    staffCount: staffCountSnap.data().count,
+    photoConsentPending: photoConsentCountSnap.data().count,
   };
 }

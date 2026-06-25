@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useSchool } from "@/lib/school-context";
 import {
-  getCockpitStats, getInvoicesForSchool,
+  getChildrenForSchoolPage, getCockpitStats, getInvoicesForSchoolPage,
   updateInvoiceStatus,
 } from "@/lib/db";
-import type { CockpitStats, Invoice } from "@/lib/types";
+import type { Child, CockpitStats, Invoice } from "@/lib/types";
+import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
 import { BarChart2, CreditCard, Settings, LogOut, Bell } from "lucide-react";
@@ -16,39 +17,77 @@ import { BarChart2, CreditCard, Settings, LogOut, Bell } from "lucide-react";
 type Tab = "overview" | "billing" | "settings";
 
 export default function OwnerDashboard() {
-  const { appUser, signOut } = useAuth();
+  const { appUser, firebaseUser, signOut } = useAuth();
   const { school } = useSchool();
   const router = useRouter();
 
   const [tab, setTab] = useState<Tab>("overview");
   const [stats, setStats] = useState<CockpitStats | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [children, setChildren] = useState<Child[]>([]);
+  const [invoiceCursor, setInvoiceCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMoreInvoices, setHasMoreInvoices] = useState(false);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [loading, setLoading] = useState(true);
   const { loading: schoolLoading } = useSchool();
 
   useEffect(() => {
     if (!appUser) { router.replace("/login"); return; }
     if (appUser.role !== "owner") { router.replace("/"); return; }
-
-    // If school context is still loading, wait
     if (schoolLoading) return;
 
-    // School loaded — use appUser.schoolId directly as fallback
+    let cancelled = false;
     const schoolId = school?.id ?? appUser.schoolId;
-    if (!schoolId) {
-      setLoading(false);
-      return;
+
+    async function loadDashboard() {
+      if (!schoolId) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
+
+      try {
+        const [s, invoicePage] = await Promise.all([
+          getCockpitStats(schoolId),
+          getInvoicesForSchoolPage(schoolId),
+        ]);
+        const childPage = await getChildrenForSchoolPage(schoolId, {
+          includePendingErasure: true,
+        });
+
+        if (cancelled) return;
+        setStats(s);
+        setInvoices(invoicePage.items);
+        setChildren(childPage.items);
+        setInvoiceCursor(invoicePage.nextCursor);
+        setHasMoreInvoices(invoicePage.hasMore);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
 
-    Promise.all([
-      getCockpitStats(schoolId),
-      getInvoicesForSchool(schoolId),
-    ]).then(([s, inv]) => {
-      setStats(s);
-      setInvoices(inv);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    void loadDashboard();
+
+    return () => {
+      cancelled = true;
+    };
   }, [appUser, school, schoolLoading, router]);
+
+  const loadMoreInvoices = async () => {
+    const schoolId = school?.id ?? appUser?.schoolId;
+    if (!schoolId || !invoiceCursor || loadingInvoices) return;
+
+    setLoadingInvoices(true);
+    try {
+      const invoicePage = await getInvoicesForSchoolPage(schoolId, { cursor: invoiceCursor });
+      setInvoices(prev => [...prev, ...invoicePage.items]);
+      setInvoiceCursor(invoicePage.nextCursor);
+      setHasMoreInvoices(invoicePage.hasMore);
+    } catch {
+      toast.error("Could not load more invoices");
+    } finally {
+      setLoadingInvoices(false);
+    }
+  };
 
   const sendReminders = async () => {
     const outstanding = invoices.filter(i => i.status === "outstanding" || i.status === "overdue");
@@ -59,6 +98,55 @@ export default function OwnerDashboard() {
   const handleSignOut = async () => {
     await signOut();
     router.replace("/login");
+  };
+
+  const requestChildErasure = async (child: Child) => {
+    if (!firebaseUser) return;
+
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/children/${child.id}/deletion`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setChildren(prev => prev.map(c => c.id === child.id
+        ? {
+            ...c,
+            deletionStatus: "pending_erasure",
+            deletionRequestedAt: new Date().toISOString(),
+            deletionRequestedBy: appUser?.uid,
+          }
+        : c));
+      toast.success(`${child.firstName} marked for erasure`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not request erasure");
+    }
+  };
+
+  const permanentlyEraseChild = async (child: Child, confirmName: string) => {
+    if (!firebaseUser) return;
+
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/children/${child.id}/deletion`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ confirmName }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setChildren(prev => prev.filter(c => c.id !== child.id));
+      toast.success("Child data permanently erased");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not erase child data");
+    }
   };
 
   const collectedFormatted = stats ? `R${(stats.collectedMTD / 100).toLocaleString()}` : "—";
@@ -244,6 +332,17 @@ export default function OwnerDashboard() {
                 )}
               </div>
             ))}
+
+            {hasMoreInvoices && (
+              <button
+                className="btn btn-secondary"
+                style={{ width: "100%", fontSize: 13 }}
+                onClick={loadMoreInvoices}
+                disabled={loadingInvoices}
+              >
+                {loadingInvoices ? <span className="spinner" /> : "Load more invoices"}
+              </button>
+            )}
           </div>
         )}
 
@@ -295,6 +394,12 @@ export default function OwnerDashboard() {
               <InviteForm schoolId={school.id} schoolSlug={school.slug} />
             </div>
 
+            <PrivacyErasurePanel
+              childRecords={children}
+              onRequestErasure={requestChildErasure}
+              onPermanentErasure={permanentlyEraseChild}
+            />
+
             <button className="btn btn-danger" style={{ width: "100%" }} onClick={handleSignOut}>
               Sign out
             </button>
@@ -319,12 +424,125 @@ export default function OwnerDashboard() {
   );
 }
 
+function PrivacyErasurePanel({
+  childRecords,
+  onRequestErasure,
+  onPermanentErasure,
+}: {
+  childRecords: Child[];
+  onRequestErasure: (child: Child) => Promise<void>;
+  onPermanentErasure: (child: Child, confirmName: string) => Promise<void>;
+}) {
+  const [confirmingChildId, setConfirmingChildId] = React.useState<string | null>(null);
+  const [confirmName, setConfirmName] = React.useState("");
+  const [savingChildId, setSavingChildId] = React.useState<string | null>(null);
+
+  const handleRequest = async (child: Child) => {
+    setSavingChildId(child.id);
+    try {
+      await onRequestErasure(child);
+    } finally {
+      setSavingChildId(null);
+    }
+  };
+
+  const handlePermanentErasure = async (child: Child) => {
+    setSavingChildId(child.id);
+    try {
+      await onPermanentErasure(child, confirmName.trim());
+      setConfirmingChildId(null);
+      setConfirmName("");
+    } finally {
+      setSavingChildId(null);
+    }
+  };
+
+  return (
+    <div className="card" style={{ borderLeft: "3px solid var(--danger)" }}>
+      <h4 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600 }}>POPIA data erasure</h4>
+      <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--text-muted)" }}>
+        Soft-delete first, then permanently erase child-linked updates, moments, invoices and messages after confirmation.
+      </p>
+
+      {childRecords.length === 0 ? (
+        <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>No children found for this school.</p>
+      ) : childRecords.map(child => {
+        const fullName = `${child.firstName} ${child.lastName}`.trim();
+        const isPending = child.deletionStatus === "pending_erasure";
+        const isSaving = savingChildId === child.id;
+        const isConfirming = confirmingChildId === child.id;
+
+        return (
+          <div
+            key={child.id}
+            style={{
+              padding: "10px 0",
+              borderTop: "1px solid var(--border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <div>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>{fullName}</p>
+                <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                  {isPending ? "Pending permanent erasure" : "Active child record"}
+                </p>
+              </div>
+              <span className={`pill ${isPending ? "pill-red" : "pill-gray"}`}>
+                {isPending ? "Pending" : "Active"}
+              </span>
+            </div>
+
+            {!isPending ? (
+              <button
+                className="btn btn-secondary"
+                style={{ width: "100%", fontSize: 13 }}
+                disabled={isSaving}
+                onClick={() => handleRequest(child)}
+              >
+                {isSaving ? <span className="spinner" /> : "Request erasure"}
+              </button>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {isConfirming && (
+                  <input
+                    className="input"
+                    placeholder={`Type ${fullName} to confirm`}
+                    value={confirmName}
+                    onChange={event => setConfirmName(event.target.value)}
+                  />
+                )}
+                <button
+                  className="btn btn-danger"
+                  style={{ width: "100%", fontSize: 13 }}
+                  disabled={isSaving}
+                  onClick={() => {
+                    if (!isConfirming) {
+                      setConfirmingChildId(child.id);
+                      setConfirmName("");
+                      return;
+                    }
+                    void handlePermanentErasure(child);
+                  }}
+                >
+                  {isSaving ? <span className="spinner" /> : "Permanently erase data"}
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Inline invite component for owner dashboard
 function InviteForm({ schoolId, schoolSlug }: { schoolId: string; schoolSlug: string }) {
   const [form, setForm] = React.useState({ email: "", displayName: "", role: "teacher", phone: "" });
   const [saving, setSaving] = React.useState(false);
   const [link, setLink] = React.useState<string | null>(null);
-  const [copied, setCopied] = React.useState(false);
 
   const handleInvite = async () => {
     if (!form.email || !form.displayName) { toast.error("Name and email required"); return; }
@@ -347,13 +565,6 @@ function InviteForm({ schoolId, schoolSlug }: { schoolId: string; schoolSlug: st
     }
   };
 
-  const copy = () => {
-    if (!link) return;
-    navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <select className="input" value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}>
@@ -374,7 +585,7 @@ function InviteForm({ schoolId, schoolSlug }: { schoolId: string; schoolSlug: st
         <div style={{ background: "#f0fdf4", borderRadius: 8, padding: 12 }}>
           <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#166534" }}>✓ Invite email sent</p>
           <p style={{ margin: "4px 0 0", fontSize: 12, color: "#166534" }}>
-            They'll get an email to set their password and access their dashboard.
+            They&apos;ll get an email to set their password and access their dashboard.
           </p>
         </div>
       )}

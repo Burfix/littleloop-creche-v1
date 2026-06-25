@@ -7,7 +7,7 @@ import { useSchool } from "@/lib/school-context";
 
 export default function RootPage() {
   const { appUser, loading: authLoading } = useAuth();
-  const { school, loading: schoolLoading } = useSchool();
+  const { loading: schoolLoading } = useSchool();
   const router = useRouter();
 
   useEffect(() => {

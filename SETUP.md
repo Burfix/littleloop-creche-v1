@@ -49,7 +49,7 @@ A fully architected Next.js app with:
 
 In your Vercel project (`littleloop-creche-v1`) → Settings → Environment Variables:
 
-Add all 7 variables for **Production**, **Preview**, and **Development**:
+Add these Firebase and tenant routing variables for **Production**, **Preview**, and **Development**:
 
 ```
 NEXT_PUBLIC_FIREBASE_API_KEY          = your_api_key
@@ -59,26 +59,47 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET   = your_project_id.appspot.com
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = your_sender_id
 NEXT_PUBLIC_FIREBASE_APP_ID           = your_app_id
 NEXT_PUBLIC_DEFAULT_SCHOOL_SLUG       = demo
+NEXT_PUBLIC_ROOT_DOMAIN               = littleloop.app
 ```
+
+Add these server-only variables for Firebase Admin:
+
+```
+FIREBASE_ADMIN_PROJECT_ID             = your_project_id
+FIREBASE_ADMIN_CLIENT_EMAIL           = firebase-adminsdk-...@your_project_id.iam.gserviceaccount.com
+FIREBASE_ADMIN_PRIVATE_KEY            = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+```
+
+Add these server-only variables for distributed API rate limiting:
+
+```
+UPSTASH_REDIS_REST_URL                = https://your-redis.upstash.io
+UPSTASH_REDIS_REST_TOKEN              = your_upstash_rest_token
+```
+
+The app has a local in-memory fallback for development, but production should use Upstash so rate limits are shared across Vercel function instances.
 
 ---
 
 ## STEP 3 — Deploy Firestore and Storage rules (5 min)
 
-Install Firebase CLI if you haven't:
+Install dependencies and log in to Firebase:
 ```bash
-npm install -g firebase-tools
-firebase login
-firebase init
+npm install
+npx firebase login
 ```
 
-Select: Firestore, Storage → use existing project → accept defaults for file names.
+The repository already includes `firebase.json`, so you do not need to run `firebase init`.
 
 Then deploy:
 ```bash
-firebase deploy --only firestore:rules
-firebase deploy --only storage:rules
+npm run firebase:deploy:rules
 ```
+
+This deploys:
+- Firestore security rules from `firestore.rules`
+- Firestore composite indexes from `firestore.indexes.json`
+- Storage security rules from `storage.rules`
 
 ---
 
@@ -168,7 +189,8 @@ Each school's slug (e.g. `pebblestones`) becomes `pebblestones.littleloop.app` a
 
 **For custom school domains** (e.g. `app.pebblestones.co.za`):
 - Add the domain in Vercel → Domains
-- Set `NEXT_PUBLIC_DEFAULT_SCHOOL_SLUG=pebblestones` as an environment variable scoped to that domain (Vercel supports per-domain env vars via Edge Config or middleware)
+- Use the default school slug only for bare/custom domains that do not map to `*.littleloop.app`.
+- Standard school subdomains are resolved server-side from the request hostname by `proxy.ts`.
 
 ---
 

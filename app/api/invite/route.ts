@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, displayName, role, schoolId, schoolSlug, branchId, childIds, phone } = await req.json();
+    const rateLimited = await enforceRateLimit(req, {
+      namespace: "invite",
+      limit: 5,
+      windowSeconds: 60,
+    });
+    if (rateLimited) return rateLimited;
+
+    const { email, displayName, role, schoolId, branchId, childIds, phone } = await req.json();
 
     if (!email || !displayName || !role) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
