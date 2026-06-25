@@ -191,7 +191,7 @@ export async function POST(req: NextRequest) {
         lineItems, createdAt: FieldValue.serverTimestamp(),
       });
       // This month
-      const thisStatus = i % 5 === 0 ? "paid" : "outstanding";
+      const thisStatus = i % 10 < 7 ? "paid" : "outstanding"; // ~70% paid
       iBatch.set(db.collection("invoices").doc(`inv_${THIS_MONTH}_${child.id}`), {
         id: `inv_${THIS_MONTH}_${child.id}`, schoolId: SCHOOL_ID, branchId: SCHOOL_ID,
         parentId, childId: child.id, childName, month: THIS_MONTH,
