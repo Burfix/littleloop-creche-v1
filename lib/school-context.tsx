@@ -1,7 +1,9 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { getSchoolBySlug } from "@/lib/db";
+import { getSchoolBySlug, getSchool } from "@/lib/db";
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import { resolveTenantSlugFromHost } from "@/lib/tenant";
 import type { School } from "@/lib/types";
 
@@ -43,9 +45,20 @@ export function SchoolProvider({
     void Promise.resolve()
       .then(async () => {
         setSlug(resolvedSlug);
-        const s = await getSchoolBySlug(resolvedSlug);
+        let s = await getSchoolBySlug(resolvedSlug);
+
+        // Fallback: no school found by slug (e.g. superadmin impersonating on root domain)
+        // Load school from the authenticated user's schoolId instead
+        if (!s) {
+          const uid = auth.currentUser?.uid;
+          if (uid) {
+            const userSnap = await getDoc(doc(db, "users", uid));
+            const schoolId = userSnap.data()?.schoolId as string | undefined;
+            if (schoolId) s = await getSchool(schoolId);
+          }
+        }
+
         setSchool(s);
-        // Apply school brand colour as CSS custom property
         if (s?.primaryColor) {
           document.documentElement.style.setProperty("--brand", s.primaryColor);
         }
