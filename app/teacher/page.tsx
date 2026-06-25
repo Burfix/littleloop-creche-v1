@@ -931,7 +931,7 @@ export default function TeacherDashboard() {
 
       {/* Leave Request tab */}
       {tab === "leave" && (
-        <TeacherLeavePanel firebaseUser={firebaseUser} schoolId={classroom?.schoolId ?? ""} />
+        <TeacherLeavePanel firebaseUser={firebaseUser} schoolId={school?.id ?? ""} />
       )}
 
       {/* Bottom nav */}
