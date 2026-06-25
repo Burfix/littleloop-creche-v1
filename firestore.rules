@@ -32,15 +32,6 @@ service cloud.firestore {
       return isSignedIn() && userRole() == 'teacher' && userSchoolId() == schoolId;
     }
 
-    function isStaffOf(schoolId) {
-      return isOwnerOf(schoolId) || isTeacherOf(schoolId);
-    }
-
-    function isParentOf(childId) {
-      return isSignedIn() && userRole() == 'parent' &&
-        request.auth.uid in get(/databases/$(database)/documents/children/$(childId)).data.parentIds;
-    }
-
     // ── Users ────────────────────────────────────────────────────
     match /users/{uid} {
       allow read: if isSignedIn() && (

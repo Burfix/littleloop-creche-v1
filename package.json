@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "verify": "npm run lint && npm run test && npm run build",
-    "firebase:deploy:rules": "FIREBASE_CLI_DISABLE_UPDATE_CHECK=true firebase deploy --only firestore:rules,firestore:indexes,storage:rules"
+    "firebase:deploy:rules": "FIREBASE_CLI_DISABLE_UPDATE_CHECK=true firebase deploy --only firestore:rules,firestore:indexes,storage"
   },
   "dependencies": {
     "date-fns": "^4.4.0",
