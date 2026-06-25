@@ -23,7 +23,7 @@ function InfoItem({ label, value }: { label: string; value?: string | null }) {
 
 export function ChildProfileReport({ schoolName, child, medical, parentNames, generatedAt }: Props) {
   const dob = child.dateOfBirth ? new Date(child.dateOfBirth).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" }) : "—";
-  const enrolled = child.enrollmentDate ? new Date(child.enrollmentDate).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" }) : "—";
+  const enrolled = child.enrolledAt ? new Date(child.enrolledAt).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" }) : "—";
 
   return (
     <Document>
