@@ -1,0 +1,137 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function userSchoolId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && userRole() == 'superadmin';
+    }
+
+    function isOwnerOf(schoolId) {
+      return isSignedIn() && userRole() == 'owner' && userSchoolId() == schoolId;
+    }
+
+    function isTeacherOf(schoolId) {
+      return isSignedIn() && userRole() == 'teacher' && userSchoolId() == schoolId;
+    }
+
+    function isParentOf(childId) {
+      return isSignedIn() && userRole() == 'parent' &&
+        request.auth.uid in get(/databases/$(database)/documents/children/$(childId)).data.parentIds;
+    }
+
+    // ── Users ────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId));
+      allow create: if isSuperAdmin();
+      allow update: if isSignedIn() && (request.auth.uid == uid || isSuperAdmin());
+    }
+
+    // ── Schools ──────────────────────────────────────────────────
+    match /schools/{schoolId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || isOwnerOf(schoolId) ||
+        isTeacherOf(schoolId) || userSchoolId() == schoolId);
+      allow create, update, delete: if isSuperAdmin();
+      allow update: if isOwnerOf(schoolId);
+    }
+
+    // ── Children ─────────────────────────────────────────────────
+    match /children/{childId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId) ||
+        isTeacherOf(resource.data.schoolId) ||
+        (userRole() == 'parent' && request.auth.uid in resource.data.parentIds)
+      );
+      allow create: if isOwnerOf(request.resource.data.schoolId) || isSuperAdmin();
+      allow update: if isOwnerOf(resource.data.schoolId) || isSuperAdmin() ||
+        isTeacherOf(resource.data.schoolId);
+    }
+
+    // ── Classes ──────────────────────────────────────────────────
+    match /classes/{classId} {
+      allow read: if isSignedIn() && userSchoolId() == resource.data.schoolId;
+      allow write: if isOwnerOf(resource.data.schoolId) || isSuperAdmin();
+    }
+
+    // ── Daily Updates ────────────────────────────────────────────
+    match /daily_updates/{updateId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId) ||
+        isTeacherOf(resource.data.schoolId) ||
+        (userRole() == 'parent' && request.auth.uid in
+          get(/databases/$(database)/documents/children/$(resource.data.childId)).data.parentIds)
+      );
+      allow create, update: if isTeacherOf(request.resource.data.schoolId) ||
+        isOwnerOf(request.resource.data.schoolId) || isSuperAdmin();
+    }
+
+    // ── Moments ──────────────────────────────────────────────────
+    match /moments/{momentId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId) ||
+        isTeacherOf(resource.data.schoolId) ||
+        (userRole() == 'parent' && resource.data.visibleToParents &&
+          request.auth.uid in
+            get(/databases/$(database)/documents/children/$(resource.data.childId)).data.parentIds)
+      );
+      allow create: if isTeacherOf(request.resource.data.schoolId) || isSuperAdmin();
+      allow update: if isTeacherOf(resource.data.schoolId) ||
+        isOwnerOf(resource.data.schoolId) || isSuperAdmin();
+    }
+
+    // ── Invoices ─────────────────────────────────────────────────
+    match /invoices/{invoiceId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId) ||
+        (userRole() == 'parent' && resource.data.parentId == request.auth.uid)
+      );
+      allow create: if isOwnerOf(request.resource.data.schoolId) || isSuperAdmin();
+      allow update: if isOwnerOf(resource.data.schoolId) || isSuperAdmin() ||
+        // Parents can upload proof only
+        (userRole() == 'parent' && resource.data.parentId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['proofUrl']));
+    }
+
+    // ── Tasks ────────────────────────────────────────────────────
+    match /tasks/{taskId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId) ||
+        isTeacherOf(resource.data.schoolId)
+      );
+      allow create, update: if isTeacherOf(request.resource.data.schoolId) ||
+        isOwnerOf(request.resource.data.schoolId) || isSuperAdmin();
+    }
+
+    // ── Messages ─────────────────────────────────────────────────
+    match /messages/{messageId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.senderId == request.auth.uid ||
+        // Thread participants can read
+        isTeacherOf(resource.data.schoolId) ||
+        (userRole() == 'parent' && resource.data.threadId.matches(request.auth.uid + '_.*'))
+      );
+      allow create: if isSignedIn() &&
+        request.resource.data.senderId == request.auth.uid;
+    }
+  }
+}
