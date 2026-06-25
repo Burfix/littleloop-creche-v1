@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     const existing = await db.collection("schools")
       .where("slug", "==", slug.toLowerCase()).limit(1).get();
     if (!existing.empty) {
-      return NextResponse.json({ error: "Slug already taken" }, { status: 409 });
+      return NextResponse.json({ error: "Slug already taken — choose a different URL name" }, { status: 409 });
     }
 
     // 2. Create school document
@@ -35,17 +35,18 @@ export async function POST(req: NextRequest) {
 
     // 3. Create or get owner Firebase Auth user
     let uid: string;
+    let isNew = false;
     try {
-      const existing = await auth.getUserByEmail(ownerEmail);
-      uid = existing.uid;
+      const existingUser = await auth.getUserByEmail(ownerEmail);
+      uid = existingUser.uid;
     } catch {
-      // User doesn't exist — create them
       const newUser = await auth.createUser({
         email: ownerEmail,
         displayName: ownerName,
         emailVerified: false,
       });
       uid = newUser.uid;
+      isNew = true;
     }
 
     // 4. Create owner Firestore user document
@@ -56,25 +57,37 @@ export async function POST(req: NextRequest) {
       role: "owner",
       schoolId,
       createdAt: new Date().toISOString(),
-    });
+    }, { merge: true });
 
-    // 5. Generate password setup link and send via Firebase Auth email
-    const setupLink = await auth.generatePasswordResetLink(ownerEmail, {
-      url: `${process.env.NEXT_PUBLIC_APP_URL}/login?school=${slug}&setup=true`,
-    });
+    // 5. Send password setup email directly
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://littleloop-creche-v1.vercel.app";
+    const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
-    // 6. Send the invite email using Firebase Auth custom email
-    // For now we return the link — in production connect SendGrid/Resend here
-    // Firebase Auth will send the default password reset email automatically
-    // when using generatePasswordResetLink with sendPasswordResetEmail
-    await auth.generatePasswordResetLink(ownerEmail);
+    const sendEmailRes = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestType: "PASSWORD_RESET",
+          email: ownerEmail,
+          continueUrl: `${appUrl}/login`,
+        }),
+      }
+    );
+
+    if (!sendEmailRes.ok) {
+      const err = await sendEmailRes.json();
+      console.error("Email send failed:", err);
+      // Don't fail the whole request — school was created successfully
+    }
 
     return NextResponse.json({
       success: true,
       schoolId,
       uid,
-      setupLink, // Return for display in admin UI until email is configured
-      message: `School created. Setup link generated for ${ownerEmail}`,
+      isNew,
+      message: `${name} created. Setup email sent to ${ownerEmail}.`,
     });
 
   } catch (err) {

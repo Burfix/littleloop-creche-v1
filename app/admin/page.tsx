@@ -56,8 +56,8 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      setSetupLink(data.setupLink);
-      toast.success(`${schoolForm.name} created!`);
+      setSetupLink("sent");
+      toast.success(`${schoolForm.name} created! Setup email sent to ${schoolForm.ownerEmail}`);
       getAllSchools().then(setSchools);
       setSchoolForm({ name: "", slug: "", ownerName: "", ownerEmail: "", phone: "", address: "" });
     } catch (err) {
@@ -86,7 +86,7 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      setInviteLink(data.setupLink);
+      setInviteLink("sent");
       toast.success(data.message);
       setInviteForm({ email: "", displayName: "", role: "teacher", schoolId: "", schoolSlug: "", phone: "" });
     } catch (err) {
@@ -170,23 +170,12 @@ export default function AdminDashboard() {
             {/* Setup link result */}
             {setupLink && (
               <div className="card" style={{ borderLeft: "3px solid var(--success)", background: "#f0fdf4" }}>
-                <p style={{ margin: "0 0 8px", fontWeight: 600, fontSize: 14, color: "#166534" }}>
-                  ✓ School created — share this link with the owner
+                <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: "#166534" }}>
+                  ✓ School created — setup email sent to owner
                 </p>
-                <p style={{ margin: "0 0 10px", fontSize: 12, color: "#166534", wordBreak: "break-all" }}>
-                  {setupLink}
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#166534" }}>
+                  They'll receive an email to set their password and access their dashboard.
                 </p>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button className="btn btn-secondary" style={{ flex: 1, fontSize: 13, padding: "8px" }}
-                    onClick={() => copyLink(setupLink)}>
-                    {copied ? <Check size={14} /> : <Copy size={14} />}
-                    {copied ? "Copied!" : "Copy link"}
-                  </button>
-                  <a href={`mailto:?subject=Your LittleLoop access&body=Here is your setup link: ${setupLink}`}
-                    className="btn btn-secondary" style={{ flex: 1, fontSize: 13, padding: "8px", textDecoration: "none", textAlign: "center" }}>
-                    <Mail size={14} /> Email link
-                  </a>
-                </div>
               </div>
             )}
 
@@ -311,28 +300,14 @@ export default function AdminDashboard() {
               </button>
             </div>
 
-            {/* Invite link result */}
+            {/* Invite sent confirmation */}
             {inviteLink && (
               <div className="card" style={{ borderLeft: "3px solid var(--success)", background: "#f0fdf4" }}>
-                <p style={{ margin: "0 0 8px", fontWeight: 600, fontSize: 14, color: "#166534" }}>
-                  ✓ Invite ready — share this link
+                <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: "#166534" }}>
+                  ✓ Invite email sent
                 </p>
-                <p style={{ margin: "0 0 10px", fontSize: 11, color: "#166534", wordBreak: "break-all" }}>
-                  {inviteLink}
-                </p>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button className="btn btn-secondary" style={{ flex: 1, fontSize: 13, padding: "8px" }}
-                    onClick={() => copyLink(inviteLink)}>
-                    {copied ? <Check size={14} /> : <Copy size={14} />}
-                    {copied ? "Copied!" : "Copy link"}
-                  </button>
-                  <a href={`mailto:${inviteForm.email}?subject=You've been invited to LittleLoop&body=Hi ${inviteForm.displayName},%0A%0AYou've been added to LittleLoop. Click the link below to set your password and get started:%0A%0A${inviteLink}%0A%0AWelcome!`}
-                    className="btn btn-primary" style={{ flex: 1, fontSize: 13, padding: "8px", textDecoration: "none", textAlign: "center" }}>
-                    <Mail size={14} /> Email them
-                  </a>
-                </div>
-                <p style={{ margin: "10px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
-                  Link expires in 1 hour. Generate a new one if needed.
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#166534" }}>
+                  They'll receive an email to set their password and access their dashboard immediately.
                 </p>
               </div>
             )}

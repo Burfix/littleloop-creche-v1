@@ -327,8 +327,8 @@ function InviteForm({ schoolId, schoolSlug }: { schoolId: string; schoolSlug: st
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setLink(data.setupLink);
-      toast.success("Invite link ready!");
+      setLink("sent");
+      toast.success("Invite email sent!");
       setForm({ email: "", displayName: "", role: "teacher", phone: "" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed");
@@ -362,17 +362,10 @@ function InviteForm({ schoolId, schoolSlug }: { schoolId: string; schoolSlug: st
       </button>
       {link && (
         <div style={{ background: "#f0fdf4", borderRadius: 8, padding: 12 }}>
-          <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 600, color: "#166534" }}>Invite link ready</p>
-          <p style={{ margin: "0 0 8px", fontSize: 11, color: "#166534", wordBreak: "break-all" }}>{link}</p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn btn-secondary" style={{ flex: 1, fontSize: 12, padding: "8px" }} onClick={copy}>
-              {copied ? "Copied!" : "Copy link"}
-            </button>
-            <a href={`mailto:${form.email}?subject=Your LittleLoop invite&body=Hi, here is your setup link: ${link}`}
-              className="btn btn-primary" style={{ flex: 1, fontSize: 12, padding: "8px", textDecoration: "none", textAlign: "center" }}>
-              Email them
-            </a>
-          </div>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#166534" }}>✓ Invite email sent</p>
+          <p style={{ margin: "4px 0 0", fontSize: 12, color: "#166534" }}>
+            They'll get an email to set their password and access their dashboard.
+          </p>
         </div>
       )}
     </div>
