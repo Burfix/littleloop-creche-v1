@@ -22,8 +22,12 @@ export function adminAuth() {
   return getAuth(getAdminApp());
 }
 
+let _db: ReturnType<typeof getFirestore> | null = null;
+
 export function adminDb() {
-  const db = getFirestore(getAdminApp());
-  db.settings({ ignoreUndefinedProperties: true });
-  return db;
+  if (!_db) {
+    _db = getFirestore(getAdminApp());
+    _db.settings({ ignoreUndefinedProperties: true });
+  }
+  return _db;
 }
