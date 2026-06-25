@@ -24,7 +24,7 @@ const EATEN_OPTIONS: MealRecord["eaten"][] = ["all", "some", "none"];
 const NAP_OPTIONS = [0, 30, 60, 90, 120] as const;
 
 export default function TeacherDashboard() {
-  const { appUser, signOut } = useAuth();
+  const { appUser, firebaseUser, signOut } = useAuth();
   const { school } = useSchool();
   const router = useRouter();
 
