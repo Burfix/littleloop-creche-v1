@@ -13,9 +13,9 @@ import type { Admission, Child, CockpitStats, Invoice, MedicalRecord, JournalEnt
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { BarChart2, Bell, BookOpen, ClipboardList, CreditCard, Settings, LogOut, Stethoscope } from "lucide-react";
+import { BarChart2, Bell, BookOpen, ClipboardList, CreditCard, Settings, LogOut, Stethoscope, TrendingUp } from "lucide-react";
 
-type Tab = "overview" | "admissions" | "medical" | "journal" | "billing" | "settings";
+type Tab = "overview" | "admissions" | "medical" | "journal" | "billing" | "analytics" | "settings";
 
 export default function OwnerDashboard() {
   const { appUser, firebaseUser, signOut } = useAuth();
@@ -306,6 +306,10 @@ export default function OwnerDashboard() {
           <BillingPanel schoolId={school.id} schoolName={school.name} firebaseUser={firebaseUser} />
         )}
 
+        {tab === "analytics" && school && (
+          <AnalyticsPanel schoolId={school.id} firebaseUser={firebaseUser} />
+        )}
+
         {/* ── SETTINGS TAB ── */}
         {tab === "settings" && school && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -375,6 +379,7 @@ export default function OwnerDashboard() {
           { id: "medical", Icon: Stethoscope, label: "Medical" },
           { id: "journal", Icon: BookOpen, label: "Journal" },
           { id: "billing", Icon: CreditCard, label: "Billing" },
+          { id: "analytics", Icon: TrendingUp, label: "Analytics" },
           { id: "settings", Icon: Settings, label: "Settings" },
         ] as const).map(({ id, Icon, label }) => (
           <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
@@ -1537,6 +1542,222 @@ function BillingPanel({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Analytics Panel ──────────────────────────────────────────────────────────
+
+interface AnalyticsData {
+  attendanceTrend: { date: string; rate: number; checkedIn: number; total: number }[];
+  revenueTrend: { month: string; collectedCents: number; outstandingCents: number; overdueCents: number }[];
+  domainCounts: Record<string, number>;
+  journalCount: number;
+  admissionsFunnel: Record<string, number>;
+  occupancy: { enrolled: number; capacity: number; rate: number };
+  collection: { collectedCents: number; outstandingCents: number; overdueCents: number; rate: number };
+}
+
+function AnalyticsPanel({ schoolId, firebaseUser }: { schoolId: string; firebaseUser: User | null }) {
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!schoolId || !firebaseUser) return;
+    firebaseUser.getIdToken().then(token =>
+      fetch("/api/analytics", { headers: { Authorization: `Bearer ${token}` } })
+    ).then(r => r.json())
+      .then(d => { if (d.error) throw new Error(d.error); setData(d); })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [schoolId, firebaseUser]);
+
+  if (loading) return <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading analytics…</div>;
+  if (error || !data) return <div style={{ padding: 24, color: "#dc2626" }}>Failed to load analytics.</div>;
+
+  const domainLabels: Record<string, string> = {
+    physical: "🏃 Physical", cognitive: "🧠 Cognitive", language: "💬 Language",
+    social: "🤝 Social", emotional: "💛 Emotional", creative: "🎨 Creative",
+  };
+  const DOMAIN_COLORS: Record<string, string> = {
+    physical: "#3b82f6", cognitive: "#8b5cf6", language: "#10b981",
+    social: "#f59e0b", emotional: "#ec4899", creative: "#f97316",
+  };
+
+  // SVG bar chart helpers
+  const BAR_W = 8;
+  const BAR_GAP = 3;
+  const CHART_H = 80;
+
+  function BarChart({ values, colors, labels, formatVal }: {
+    values: number[][], colors: string[], labels: string[], formatVal?: (v: number) => string
+  }) {
+    const maxVal = Math.max(...values.flat(), 1);
+    const totalBars = values[0].length;
+    const svgW = totalBars * (BAR_W * values.length + BAR_GAP * (values.length - 1) + 4);
+    return (
+      <svg viewBox={`0 0 ${svgW} ${CHART_H + 16}`} style={{ width: "100%", height: CHART_H + 16 }}>
+        {values[0].map((_, i) => (
+          values.map((series, si) => {
+            const barH = Math.max(2, (series[i] / maxVal) * CHART_H);
+            const x = i * (BAR_W * values.length + BAR_GAP * (values.length - 1) + 4) + si * (BAR_W + BAR_GAP);
+            return (
+              <g key={`${i}-${si}`}>
+                <rect x={x} y={CHART_H - barH} width={BAR_W} height={barH} rx={2} fill={colors[si]} opacity={0.85} />
+              </g>
+            );
+          })
+        ))}
+      </svg>
+    );
+  }
+
+  // Attendance: last 14 days for readability
+  const attLast14 = data.attendanceTrend.slice(-14);
+  const attMax = 100;
+
+  // Revenue: last 6 months
+  const revMax = Math.max(...data.revenueTrend.map(r => r.collectedCents + r.outstandingCents + r.overdueCents), 1);
+
+  const sectionStyle: React.CSSProperties = { borderRadius: 14, border: "1px solid var(--border)", padding: 16, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 12 };
+  const sectionTitle: React.CSSProperties = { fontSize: 13, fontWeight: 700, margin: 0 };
+  const metaStyle: React.CSSProperties = { fontSize: 12, color: "var(--text-muted)", margin: 0 };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: 32 }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Analytics</h2>
+
+      {/* KPI row */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+        {[
+          { label: "Occupancy", value: `${data.occupancy.rate}%`, sub: `${data.occupancy.enrolled}/${data.occupancy.capacity} spots`, color: data.occupancy.rate >= 80 ? "#16a34a" : "#d97706" },
+          { label: "Collection", value: `${data.collection.rate}%`, sub: `R${(data.collection.collectedCents / 100).toLocaleString("en-ZA")} paid`, color: data.collection.rate >= 80 ? "#16a34a" : "#dc2626" },
+          { label: "Journals", value: String(data.journalCount), sub: "total entries", color: "var(--primary)" },
+        ].map(kpi => (
+          <div key={kpi.label} style={{ borderRadius: 12, border: "1px solid var(--border)", padding: 12, background: "var(--surface)", textAlign: "center" }}>
+            <p style={{ margin: "0 0 2px", fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{kpi.label}</p>
+            <p style={{ margin: "0 0 2px", fontSize: 24, fontWeight: 800, color: kpi.color }}>{kpi.value}</p>
+            <p style={{ margin: 0, fontSize: 11, color: "var(--text-muted)" }}>{kpi.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Attendance trend */}
+      <div style={sectionStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <p style={sectionTitle}>Attendance — Last 14 Days</p>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--primary)" }}>
+            avg {Math.round(attLast14.reduce((s, d) => s + d.rate, 0) / (attLast14.length || 1))}%
+          </span>
+        </div>
+        <svg viewBox={`0 0 ${attLast14.length * 16} ${CHART_H + 16}`} style={{ width: "100%", height: CHART_H + 16 }}>
+          {attLast14.map((d, i) => {
+            const barH = Math.max(2, (d.rate / 100) * CHART_H);
+            const x = i * 16;
+            const color = d.rate >= 80 ? "#16a34a" : d.rate >= 50 ? "#d97706" : "#dc2626";
+            return (
+              <g key={d.date}>
+                <rect x={x + 1} y={CHART_H - barH} width={12} height={barH} rx={3} fill={color} opacity={0.8} />
+                {i % 7 === 0 && (
+                  <text x={x + 6} y={CHART_H + 12} fontSize={8} fill="var(--text-muted)" textAnchor="middle">
+                    {new Date(d.date).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+        <div style={{ display: "flex", gap: 12 }}>
+          {[["#16a34a", "≥80%"], ["#d97706", "50–79%"], ["#dc2626", "<50%"]].map(([c, l]) => (
+            <span key={l} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-muted)" }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: c, display: "inline-block" }} />{l}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Revenue trend */}
+      <div style={sectionStyle}>
+        <p style={sectionTitle}>Revenue — Last 6 Months</p>
+        <svg viewBox={`0 0 ${data.revenueTrend.length * 40} ${CHART_H + 20}`} style={{ width: "100%", height: CHART_H + 20 }}>
+          {data.revenueTrend.map((r, i) => {
+            const totalH = CHART_H;
+            const collH = Math.max(0, (r.collectedCents / revMax) * totalH);
+            const outH = Math.max(0, (r.outstandingCents / revMax) * totalH);
+            const ovdH = Math.max(0, (r.overdueCents / revMax) * totalH);
+            const x = i * 40 + 2;
+            const W = 34;
+            const label = r.month.slice(5); // "MM"
+            return (
+              <g key={r.month}>
+                <rect x={x} y={totalH - collH} width={W} height={Math.max(2, collH)} rx={3} fill="#16a34a" opacity={0.85} />
+                <rect x={x} y={totalH - collH - outH} width={W} height={Math.max(0, outH)} rx={3} fill="#d97706" opacity={0.7} />
+                <rect x={x} y={totalH - collH - outH - ovdH} width={W} height={Math.max(0, ovdH)} rx={3} fill="#dc2626" opacity={0.7} />
+                <text x={x + W / 2} y={CHART_H + 14} fontSize={9} fill="var(--text-muted)" textAnchor="middle">{label}</text>
+              </g>
+            );
+          })}
+        </svg>
+        <div style={{ display: "flex", gap: 14 }}>
+          {[["#16a34a", "Paid"], ["#d97706", "Outstanding"], ["#dc2626", "Overdue"]].map(([c, l]) => (
+            <span key={l} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--text-muted)" }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: c, display: "inline-block" }} />{l}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Journal domain coverage */}
+      {Object.keys(data.domainCounts).length > 0 && (
+        <div style={sectionStyle}>
+          <p style={sectionTitle}>Journal Domain Coverage</p>
+          {Object.entries(data.domainCounts)
+            .sort(([, a], [, b]) => b - a)
+            .map(([domain, count]) => {
+              const maxCount = Math.max(...Object.values(data.domainCounts));
+              const pct = Math.round((count / maxCount) * 100);
+              return (
+                <div key={domain}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 13 }}>{domainLabels[domain] ?? domain}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>{count}</span>
+                  </div>
+                  <div style={{ background: "var(--surface-2)", borderRadius: 99, height: 6 }}>
+                    <div style={{ width: `${pct}%`, height: "100%", borderRadius: 99, background: DOMAIN_COLORS[domain] ?? "var(--primary)", transition: "width 0.6s ease" }} />
+                  </div>
+                </div>
+              );
+            })}
+          {Object.keys(domainLabels).filter(d => !data.domainCounts[d]).length > 0 && (
+            <p style={{ ...metaStyle, marginTop: 4 }}>
+              ⚠️ No entries yet: {Object.keys(domainLabels).filter(d => !data.domainCounts[d]).map(d => domainLabels[d]).join(", ")}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Admissions funnel */}
+      <div style={sectionStyle}>
+        <p style={sectionTitle}>Admissions Pipeline</p>
+        <div style={{ display: "flex", gap: 6 }}>
+          {(["pending","reviewing","approved","enrolled","declined"] as const).map(s => {
+            const colors: Record<string, [string, string]> = {
+              pending: ["#fef3c7","#d97706"], reviewing: ["#dbeafe","#3b82f6"],
+              approved: ["#dcfce7","#16a34a"], enrolled: ["#f0fdf4","#15803d"],
+              declined: ["#fee2e2","#dc2626"],
+            };
+            const [bg, fg] = colors[s];
+            return (
+              <div key={s} style={{ flex: 1, textAlign: "center", background: bg, borderRadius: 10, padding: "10px 4px" }}>
+                <p style={{ margin: "0 0 2px", fontSize: 20, fontWeight: 800, color: fg }}>{data.admissionsFunnel[s] ?? 0}</p>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: fg, textTransform: "uppercase" }}>{s}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
     </div>
   );
 }
