@@ -24,21 +24,31 @@ export default function OwnerDashboard() {
   const [stats, setStats] = useState<CockpitStats | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const { loading: schoolLoading } = useSchool();
 
   useEffect(() => {
     if (!appUser) { router.replace("/login"); return; }
     if (appUser.role !== "owner") { router.replace("/"); return; }
-    if (!school) return;
+
+    // If school context is still loading, wait
+    if (schoolLoading) return;
+
+    // School loaded — use appUser.schoolId directly as fallback
+    const schoolId = school?.id ?? appUser.schoolId;
+    if (!schoolId) {
+      setLoading(false);
+      return;
+    }
 
     Promise.all([
-      getCockpitStats(school.id),
-      getInvoicesForSchool(school.id),
+      getCockpitStats(schoolId),
+      getInvoicesForSchool(schoolId),
     ]).then(([s, inv]) => {
       setStats(s);
       setInvoices(inv);
       setLoading(false);
-    });
-  }, [appUser, school, router]);
+    }).catch(() => setLoading(false));
+  }, [appUser, school, schoolLoading, router]);
 
   const sendReminders = async () => {
     const outstanding = invoices.filter(i => i.status === "outstanding" || i.status === "overdue");
