@@ -25,7 +25,6 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     }
     const schoolId: string = userSnap.data()?.schoolId;
 
-    // Fetch child, verify school
     const [childSnap, medicalSnap, schoolSnap] = await Promise.all([
       db.collection("children").doc(childId).get(),
       db.collection("medical_records").doc(childId).get(),
@@ -36,7 +35,6 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     const child = { id: childSnap.id, ...childSnap.data() } as any;
     if (child.schoolId !== schoolId) return NextResponse.json({ error: "School mismatch" }, { status: 403 });
 
-    // Resolve parent names
     const parentIds: string[] = child.parentIds ?? [];
     const parentNames = await Promise.all(
       parentIds.map(async (pid: string) => {
@@ -49,12 +47,13 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     const medical = medicalSnap.exists ? { id: medicalSnap.id, ...medicalSnap.data() } as any : null;
     const generatedAt = new Date().toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg" });
 
-    const buffer = await renderToBuffer(
-      createElement(ChildProfileReport as any, { schoolName, child, medical, parentNames, generatedAt })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const buffer = await (renderToBuffer as any)(
+      createElement(ChildProfileReport, { schoolName, child, medical, parentNames, generatedAt })
     );
 
     const safeName = `${child.firstName}-${child.lastName}`.replace(/\s+/g, "-").toLowerCase();
-    return new NextResponse(buffer, {
+    return new NextResponse(buffer as Buffer, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

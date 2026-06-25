@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const token = req.headers.get("authorization")?.slice(7);
   if (!token) return NextResponse.json({ error: "Auth required" }, { status: 401 });
 
-  const month = req.nextUrl.searchParams.get("month"); // YYYY-MM
+  const month = req.nextUrl.searchParams.get("month");
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
     return NextResponse.json({ error: "month param required (YYYY-MM)" }, { status: 400 });
   }
@@ -30,13 +30,11 @@ export async function GET(req: NextRequest) {
     const schoolSnap = await db.collection("schools").doc(schoolId).get();
     const schoolName: string = schoolSnap.data()?.name ?? "School";
 
-    // Invoices for this month
     const invoicesSnap = await db.collection("invoices")
       .where("schoolId", "==", schoolId)
       .where("month", "==", month)
       .get();
 
-    // Group by childId
     const byChild = new Map<string, {
       childName: string; parentId: string;
       totalCents: number; paidCents: number; outstandingCents: number; overdueCents: number; count: number;
@@ -57,7 +55,6 @@ export async function GET(req: NextRequest) {
       byChild.set(inv.childId, existing);
     });
 
-    // Resolve parent names
     const parentIds = [...new Set([...byChild.values()].map(v => v.parentId))];
     const parentNames = new Map<string, string>();
     await Promise.all(parentIds.map(async pid => {
@@ -79,11 +76,12 @@ export async function GET(req: NextRequest) {
     const monthLabel = new Date(year, mon - 1).toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
     const generatedAt = new Date().toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg" });
 
-    const buffer = await renderToBuffer(
-      createElement(BillingReport as any, { schoolName, month: monthLabel, rows, generatedAt })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const buffer = await (renderToBuffer as any)(
+      createElement(BillingReport, { schoolName, month: monthLabel, rows, generatedAt })
     );
 
-    return new NextResponse(buffer, {
+    return new NextResponse(buffer as Buffer, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
