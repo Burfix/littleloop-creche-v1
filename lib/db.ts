@@ -460,7 +460,7 @@ export async function getCockpitStats(schoolId: string): Promise<CockpitStats> {
 }
 
 // ─── Admissions ───────────────────────────────────────────────────────────────
-import type { Admission, AdmissionStatus, MedicalRecord, JournalEntry, DevelopmentDomain } from "./types";
+import type { Admission, AdmissionStatus, MedicalRecord, JournalEntry, DevelopmentDomain, HrProfile, LeaveRequest } from "./types";
 
 function toAdmission(snap: QueryDocumentSnapshot<DocumentData>): Admission {
   const d = snap.data();
@@ -628,4 +628,60 @@ export async function getOverdueInvoicesForSchool(schoolId: string): Promise<Inv
   );
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Invoice));
+}
+
+// ─── HR / Staff ───────────────────────────────────────────────────────────────
+
+export async function getStaffForSchool(schoolId: string): Promise<AppUser[]> {
+  const q = query(
+    collection(db, "users"),
+    where("schoolId", "==", schoolId),
+    where("role", "in", ["teacher", "owner"])
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ ...d.data(), uid: d.id } as AppUser));
+}
+
+export async function getHrProfile(staffUid: string): Promise<HrProfile | null> {
+  const snap = await getDoc(doc(db, "hr_profiles", staffUid));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as HrProfile;
+}
+
+export async function upsertHrProfile(
+  staffUid: string, schoolId: string,
+  data: Partial<Omit<HrProfile, "id" | "uid" | "schoolId" | "createdAt" | "updatedAt">>,
+  updatedBy: string
+): Promise<void> {
+  const ref = doc(db, "hr_profiles", staffUid);
+  const existing = await getDoc(ref);
+  await setDoc(ref, {
+    ...data,
+    uid: staffUid, schoolId,
+    updatedAt: serverTimestamp(),
+    lastUpdatedBy: updatedBy,
+    ...(existing.exists() ? {} : { createdAt: serverTimestamp() }),
+  }, { merge: true });
+}
+
+export async function getLeaveRequestsForSchool(schoolId: string): Promise<LeaveRequest[]> {
+  const q = query(
+    collection(db, "leave_requests"),
+    where("schoolId", "==", schoolId),
+    orderBy("createdAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as LeaveRequest));
+}
+
+export async function createLeaveRequest(
+  data: Omit<LeaveRequest, "id" | "status" | "createdAt" | "updatedAt">
+): Promise<string> {
+  const ref = await addDoc(collection(db, "leave_requests"), {
+    ...data,
+    status: "pending" as const,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
 }

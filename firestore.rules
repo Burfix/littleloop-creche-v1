@@ -203,6 +203,35 @@ service cloud.firestore {
       );
     }
 
+    // ── HR Profiles ───────────────────────────────────────────────
+    match /hr_profiles/{staffUid} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId) ||
+        request.auth.uid == staffUid
+      );
+      allow write: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(request.resource.data.schoolId)
+      );
+    }
+
+    // ── Leave Requests ────────────────────────────────────────────
+    match /leave_requests/{requestId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId) ||
+        request.auth.uid == resource.data.staffUid
+      );
+      allow create: if isSignedIn() &&
+        request.auth.uid == request.resource.data.staffUid;
+      allow update: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId)
+      );
+      allow delete: if isSuperAdmin() || isOwnerOf(resource.data.schoolId);
+    }
+
     // ── Waiting List ──────────────────────────────────────────────
     // Public create, owner read/update only
     match /waitlist/{entryId} {

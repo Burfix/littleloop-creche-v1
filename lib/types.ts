@@ -344,3 +344,52 @@ export interface WaitlistEntry {
   createdAt: string;
   updatedAt: string;
 }
+
+// ─── HR / Staff ───────────────────────────────────────────────────────────────
+
+export type ContractType = "permanent" | "contract" | "part-time" | "intern";
+export type LeaveType = "annual" | "sick" | "family" | "unpaid" | "other";
+export type LeaveStatus = "pending" | "approved" | "declined";
+
+export interface HrProfile {
+  id: string;                    // == staffUid
+  schoolId: string;
+  uid: string;
+  // Employment
+  employeeId?: string;           // internal ref e.g. "EMP-001"
+  contractType: ContractType;
+  startDate: string;             // YYYY-MM-DD
+  endDate?: string;              // for contract/intern
+  // Identity
+  idNumber?: string;             // SA ID / passport
+  // Emergency contact
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelation?: string;
+  // Qualifications
+  qualifications: string[];      // e.g. ["ECD Level 4", "First Aid"]
+  // Notes
+  notes?: string;
+  // Audit
+  createdAt: string;
+  updatedAt: string;
+  lastUpdatedBy: string;
+}
+
+export interface LeaveRequest {
+  id: string;
+  schoolId: string;
+  staffUid: string;
+  staffName: string;
+  type: LeaveType;
+  startDate: string;             // YYYY-MM-DD
+  endDate: string;               // YYYY-MM-DD
+  days: number;
+  reason: string;
+  status: LeaveStatus;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}

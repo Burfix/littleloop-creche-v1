@@ -9,13 +9,13 @@ import {
   getAdmissionsForSchool, updateAdmissionStatus,
   updateInvoiceStatus,
 } from "@/lib/db";
-import type { Admission, Child, CockpitStats, Invoice, MedicalRecord, JournalEntry, DevelopmentDomain, WaitlistEntry } from "@/lib/types";
+import type { Admission, Child, CockpitStats, Invoice, MedicalRecord, JournalEntry, DevelopmentDomain, WaitlistEntry, HrProfile, LeaveRequest, LeaveType, ContractType } from "@/lib/types";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { BarChart2, Bell, BookOpen, ClipboardList, CreditCard, List, Settings, LogOut, Stethoscope, TrendingUp } from "lucide-react";
+import { BarChart2, Bell, BookOpen, ClipboardList, CreditCard, List, Settings, LogOut, Stethoscope, TrendingUp, UserCheck } from "lucide-react";
 
-type Tab = "overview" | "admissions" | "waitlist" | "medical" | "journal" | "billing" | "analytics" | "settings";
+type Tab = "overview" | "admissions" | "waitlist" | "medical" | "journal" | "billing" | "analytics" | "hr" | "settings";
 
 export default function OwnerDashboard() {
   const { appUser, firebaseUser, signOut } = useAuth();
@@ -310,6 +310,10 @@ export default function OwnerDashboard() {
           <BillingPanel schoolId={school.id} schoolName={school.name} firebaseUser={firebaseUser} />
         )}
 
+        {tab === "hr" && school && (
+          <HrPanel schoolId={school.id} firebaseUser={firebaseUser} />
+        )}
+
         {tab === "analytics" && school && (
           <AnalyticsPanel schoolId={school.id} firebaseUser={firebaseUser} />
         )}
@@ -385,6 +389,7 @@ export default function OwnerDashboard() {
           { id: "journal", Icon: BookOpen, label: "Journal" },
           { id: "billing", Icon: CreditCard, label: "Billing" },
           { id: "analytics", Icon: TrendingUp, label: "Analytics" },
+          { id: "hr", Icon: UserCheck, label: "HR" },
           { id: "settings", Icon: Settings, label: "Settings" },
         ] as const).map(({ id, Icon, label }) => (
           <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
@@ -1962,6 +1967,279 @@ function WaitlistPanel({ schoolId, schoolSlug, firebaseUser }: {
                 <span style={statusStyle(entry.status)}>{entry.status}</span>
               </button>
             ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── HR Panel ─────────────────────────────────────────────────────────────────
+
+function HrPanel({ schoolId, firebaseUser }: { schoolId: string; firebaseUser: User | null }) {
+  const [staff, setStaff] = useState<AppUser[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"staff" | "leave">("staff");
+  const [selectedStaff, setSelectedStaff] = useState<AppUser | null>(null);
+  const [profile, setProfile] = useState<HrProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [reviewing, setReviewing] = useState<string | null>(null);
+
+  // Profile form state
+  const [employeeId, setEmployeeId] = useState("");
+  const [contractType, setContractType] = useState<ContractType>("permanent");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [idNumber, setIdNumber] = useState("");
+  const [ecName, setEcName] = useState("");
+  const [ecPhone, setEcPhone] = useState("");
+  const [ecRelation, setEcRelation] = useState("");
+  const [qualifications, setQualifications] = useState<string[]>([]);
+  const [newQual, setNewQual] = useState("");
+  const [profileNotes, setProfileNotes] = useState("");
+
+  async function getToken() { return firebaseUser?.getIdToken() ?? ""; }
+
+  useEffect(() => {
+    if (!schoolId || !firebaseUser) return;
+    Promise.all([
+      import("@/lib/db").then(({ getStaffForSchool }) => getStaffForSchool(schoolId)),
+      import("@/lib/db").then(({ getLeaveRequestsForSchool }) => getLeaveRequestsForSchool(schoolId)),
+    ]).then(([s, l]) => { setStaff(s); setLeaveRequests(l); setLoading(false); });
+  }, [schoolId, firebaseUser]);
+
+  async function loadProfile(member: AppUser) {
+    setSelectedStaff(member);
+    setProfileLoading(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/hr/profile?staffUid=${member.uid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const { data } = await res.json();
+      setProfile(data);
+      setEmployeeId(data?.employeeId ?? "");
+      setContractType(data?.contractType ?? "permanent");
+      setStartDate(data?.startDate ?? "");
+      setEndDate(data?.endDate ?? "");
+      setIdNumber(data?.idNumber ?? "");
+      setEcName(data?.emergencyContactName ?? "");
+      setEcPhone(data?.emergencyContactPhone ?? "");
+      setEcRelation(data?.emergencyContactRelation ?? "");
+      setQualifications(data?.qualifications ?? []);
+      setProfileNotes(data?.notes ?? "");
+    } catch { toast.error("Failed to load profile"); }
+    finally { setProfileLoading(false); }
+  }
+
+  async function saveProfile() {
+    if (!selectedStaff) return;
+    setSaving(true);
+    try {
+      const token = await getToken();
+      const res = await fetch("/api/hr/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          staffUid: selectedStaff.uid,
+          employeeId, contractType, startDate, endDate,
+          idNumber, emergencyContactName: ecName, emergencyContactPhone: ecPhone,
+          emergencyContactRelation: ecRelation, qualifications, notes: profileNotes,
+        }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      toast.success("Profile saved");
+    } catch { toast.error("Failed to save"); }
+    finally { setSaving(false); }
+  }
+
+  async function reviewLeave(requestId: string, status: "approved" | "declined", note?: string) {
+    setReviewing(requestId);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/hr/leave/${requestId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status, reviewNote: note ?? "" }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      setLeaveRequests(prev => prev.map(r =>
+        r.id === requestId ? { ...r, status } : r
+      ));
+      toast.success(status === "approved" ? "Leave approved" : "Leave declined");
+    } catch { toast.error("Action failed"); }
+    finally { setReviewing(null); }
+  }
+
+  const CONTRACT_LABELS: Record<ContractType, string> = {
+    permanent: "Permanent", contract: "Fixed-term", "part-time": "Part-time", intern: "Intern",
+  };
+  const LEAVE_TYPE_LABELS: Record<LeaveType, string> = {
+    annual: "Annual Leave", sick: "Sick Leave", family: "Family Responsibility",
+    unpaid: "Unpaid Leave", other: "Other",
+  };
+  const inputStyle: React.CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)", color: "var(--text)" };
+  const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: 4 };
+  const sectionStyle: React.CSSProperties = { borderRadius: 12, border: "1px solid var(--border)", padding: 14, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 12 };
+
+  if (loading) return <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading…</div>;
+
+  // ── Staff profile edit view ──
+  if (selectedStaff) {
+    if (profileLoading) return <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading profile…</div>;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingBottom: 32 }}>
+        <button onClick={() => setSelectedStaff(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", fontSize: 13, fontWeight: 600, padding: 0, textAlign: "left" }}>← Back</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16, color: "var(--primary)" }}>
+            {(selectedStaff.displayName ?? selectedStaff.email ?? "?")[0].toUpperCase()}
+          </div>
+          <div>
+            <p style={{ margin: "0 0 2px", fontWeight: 700, fontSize: 16 }}>{selectedStaff.displayName ?? selectedStaff.email}</p>
+            <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", textTransform: "capitalize" }}>{selectedStaff.role}</p>
+          </div>
+        </div>
+
+        {/* Employment */}
+        <div style={sectionStyle}>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>Employment</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Employee ID</label><input style={inputStyle} value={employeeId} onChange={e => setEmployeeId(e.target.value)} placeholder="EMP-001" /></div>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Contract Type</label>
+              <select style={inputStyle} value={contractType} onChange={e => setContractType(e.target.value as ContractType)}>
+                {(Object.entries(CONTRACT_LABELS) as [ContractType, string][]).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Start Date</label><input style={inputStyle} type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
+            {["contract", "intern"].includes(contractType) && (
+              <div style={{ flex: 1 }}><label style={labelStyle}>End Date</label><input style={inputStyle} type="date" value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+            )}
+          </div>
+          <div><label style={labelStyle}>ID / Passport Number</label><input style={inputStyle} value={idNumber} onChange={e => setIdNumber(e.target.value)} placeholder="SA ID or passport" /></div>
+        </div>
+
+        {/* Emergency contact */}
+        <div style={sectionStyle}>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>Emergency Contact</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 2 }}><label style={labelStyle}>Name</label><input style={inputStyle} value={ecName} onChange={e => setEcName(e.target.value)} /></div>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Relationship</label><input style={inputStyle} value={ecRelation} onChange={e => setEcRelation(e.target.value)} placeholder="Spouse" /></div>
+          </div>
+          <div><label style={labelStyle}>Phone</label><input style={inputStyle} type="tel" value={ecPhone} onChange={e => setEcPhone(e.target.value)} /></div>
+        </div>
+
+        {/* Qualifications */}
+        <div style={sectionStyle}>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>Qualifications</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input style={{ ...inputStyle, flex: 1 }} value={newQual} onChange={e => setNewQual(e.target.value)} placeholder="e.g. ECD Level 4, First Aid" onKeyDown={e => { if (e.key === "Enter" && newQual.trim()) { setQualifications(q => [...q, newQual.trim()]); setNewQual(""); } }} />
+            <button onClick={() => { if (newQual.trim()) { setQualifications(q => [...q, newQual.trim()]); setNewQual(""); } }} style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Add</button>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {qualifications.map((q, i) => (
+              <span key={i} style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 20, fontSize: 12, padding: "3px 10px" }}>
+                {q}
+                <button onClick={() => setQualifications(qs => qs.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: 14, padding: 0, lineHeight: 1 }}>×</button>
+              </span>
+            ))}
+            {qualifications.length === 0 && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>No qualifications recorded.</p>}
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div style={sectionStyle}>
+          <label style={labelStyle}>Notes</label>
+          <textarea style={{ ...inputStyle, resize: "none" }} rows={3} value={profileNotes} onChange={e => setProfileNotes(e.target.value)} placeholder="Any additional notes about this staff member…" />
+        </div>
+
+        <button onClick={saveProfile} disabled={saving} style={{ padding: "13px 0", borderRadius: 12, background: "var(--primary)", color: "#fff", border: "none", fontWeight: 700, fontSize: 15, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+          {saving ? "Saving…" : "Save HR Profile"}
+        </button>
+      </div>
+    );
+  }
+
+  // ── Main view ──
+  const pendingLeave = leaveRequests.filter(r => r.status === "pending");
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingBottom: 32 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>HR & Staff</h2>
+        {pendingLeave.length > 0 && (
+          <span style={{ background: "#fee2e2", color: "#dc2626", fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 20 }}>{pendingLeave.length} leave pending</span>
+        )}
+      </div>
+
+      {/* View toggle */}
+      <div style={{ display: "flex", gap: 0, borderRadius: 10, border: "1px solid var(--border)", overflow: "hidden" }}>
+        {(["staff", "leave"] as const).map(v => (
+          <button key={v} onClick={() => setView(v)} style={{ flex: 1, padding: "9px 0", border: "none", background: view === v ? "var(--primary)" : "var(--surface)", color: view === v ? "#fff" : "var(--text-muted)", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+            {v === "staff" ? `Staff (${staff.length})` : `Leave Requests (${leaveRequests.length})`}
+          </button>
+        ))}
+      </div>
+
+      {/* Staff list */}
+      {view === "staff" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {staff.length === 0 ? (
+            <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No staff members found. Invite them from the Settings tab.</p>
+          ) : staff.map(member => (
+            <button key={member.uid} onClick={() => loadProfile(member)} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", textAlign: "left" }}>
+              <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15, color: "var(--primary)", flexShrink: 0 }}>
+                {(member.displayName ?? member.email ?? "?")[0].toUpperCase()}
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: "0 0 2px", fontWeight: 600, fontSize: 14 }}>{member.displayName ?? member.email}</p>
+                <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", textTransform: "capitalize" }}>{member.role}</p>
+              </div>
+              <span style={{ fontSize: 12, color: "var(--primary)" }}>View →</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Leave requests */}
+      {view === "leave" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {leaveRequests.length === 0 ? (
+            <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No leave requests yet.</p>
+          ) : leaveRequests.map(req => {
+            const statusColors: Record<string, [string, string]> = {
+              pending: ["#fef3c7", "#d97706"], approved: ["#dcfce7", "#16a34a"], declined: ["#fee2e2", "#dc2626"],
+            };
+            const [bg, fg] = statusColors[req.status] ?? ["var(--surface-2)", "var(--text-muted)"];
+            return (
+              <div key={req.id} style={{ borderRadius: 12, border: "1px solid var(--border)", padding: 14, background: "var(--surface)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                  <div>
+                    <p style={{ margin: "0 0 2px", fontWeight: 700, fontSize: 14 }}>{req.staffName}</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "var(--primary)", fontWeight: 600 }}>{LEAVE_TYPE_LABELS[req.type]} · {req.days} day{req.days !== 1 ? "s" : ""}</p>
+                    <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
+                      {new Date(req.startDate).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })} – {new Date(req.endDate).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                    </p>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: bg, color: fg }}>{req.status.toUpperCase()}</span>
+                </div>
+                {req.reason && <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--text-muted)", fontStyle: "italic" }}>"{req.reason}"</p>}
+                {req.status === "pending" && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => reviewLeave(req.id, "approved")} disabled={reviewing === req.id} style={{ flex: 1, padding: "8px 0", borderRadius: 8, background: "#16a34a", color: "#fff", border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                      {reviewing === req.id ? "…" : "✓ Approve"}
+                    </button>
+                    <button onClick={() => reviewLeave(req.id, "declined")} disabled={reviewing === req.id} style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "1px solid #dc2626", background: "none", fontWeight: 700, fontSize: 13, cursor: "pointer", color: "#dc2626" }}>
+                      Decline
+                    </button>
+                  </div>
+                )}
+                {req.reviewNote && <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-muted)" }}>Note: {req.reviewNote}</p>}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -17,7 +17,7 @@ import { format } from "date-fns";
 import toast from "react-hot-toast";
 import { Users, Camera, CheckSquare, LogOut, ChevronDown, ChevronUp, BookOpen } from "lucide-react";
 
-type Tab = "checkin" | "moments" | "journal" | "tasks";
+type Tab = "checkin" | "moments" | "journal" | "tasks" | "leave";
 const MOODS: MoodEmoji[] = ["😊", "😐", "😢", "😴", "🤒"];
 const MEAL_NAMES = ["Breakfast", "Lunch", "Snack"] as const;
 const EATEN_OPTIONS: MealRecord["eaten"][] = ["all", "some", "none"];
@@ -928,6 +928,12 @@ export default function TeacherDashboard() {
         )}
       </div>
 
+
+      {/* Leave Request tab */}
+      {tab === "leave" && (
+        <TeacherLeavePanel firebaseUser={firebaseUser} schoolId={classroom?.schoolId ?? ""} />
+      )}
+
       {/* Bottom nav */}
       <nav className="bottom-nav">
         {([
@@ -935,6 +941,7 @@ export default function TeacherDashboard() {
           { id: "moments", Icon: Camera, label: "Moments" },
           { id: "journal", Icon: BookOpen, label: "Journal" },
           { id: "tasks", Icon: CheckSquare, label: "Tasks" },
+          { id: "leave", Icon: Calendar, label: "Leave" },
         ] as const).map(({ id, Icon, label }) => (
           <button
             key={id}
@@ -946,6 +953,151 @@ export default function TeacherDashboard() {
           </button>
         ))}
       </nav>
+    </div>
+  );
+}
+
+// ─── Teacher Leave Panel ──────────────────────────────────────────────────────
+
+function TeacherLeavePanel({ firebaseUser, schoolId }: { firebaseUser: import("firebase/auth").User | null; schoolId: string }) {
+  const [myRequests, setMyRequests] = useState<import("@/lib/types").LeaveRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+
+  // Form
+  const [leaveType, setLeaveType] = useState<import("@/lib/types").LeaveType>("annual");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [reason, setReason] = useState("");
+
+  async function getToken() { return firebaseUser?.getIdToken() ?? ""; }
+
+  useEffect(() => {
+    if (!firebaseUser || !schoolId) return;
+    import("@/lib/db").then(({ getLeaveRequestsForSchool }) =>
+      getLeaveRequestsForSchool(schoolId)
+    ).then(all => {
+      setMyRequests(all.filter(r => r.staffUid === firebaseUser.uid));
+      setLoading(false);
+    });
+  }, [firebaseUser, schoolId]);
+
+  function calcDays(s: string, e: string): number {
+    if (!s || !e) return 0;
+    const diff = new Date(e).getTime() - new Date(s).getTime();
+    return Math.max(1, Math.round(diff / 86400000) + 1);
+  }
+
+  async function submitRequest() {
+    if (!startDate || !endDate || !reason.trim()) {
+      toast.error("Please fill in all fields"); return;
+    }
+    if (new Date(endDate) < new Date(startDate)) {
+      toast.error("End date must be after start date"); return;
+    }
+    setSubmitting(true);
+    try {
+      const token = await getToken();
+      const days = calcDays(startDate, endDate);
+      const res = await fetch("/api/hr/leave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type: leaveType, startDate, endDate, days, reason }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const { id } = await res.json();
+      const newReq: import("@/lib/types").LeaveRequest = {
+        id, schoolId, staffUid: firebaseUser!.uid, staffName: firebaseUser!.displayName ?? "",
+        type: leaveType, startDate, endDate, days, reason,
+        status: "pending", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      };
+      setMyRequests(prev => [newReq, ...prev]);
+      setShowForm(false);
+      setStartDate(""); setEndDate(""); setReason(""); setLeaveType("annual");
+      toast.success("Leave request submitted");
+    } catch { toast.error("Failed to submit"); }
+    finally { setSubmitting(false); }
+  }
+
+  const LEAVE_LABELS: Record<string, string> = {
+    annual: "Annual Leave", sick: "Sick Leave", family: "Family Responsibility",
+    unpaid: "Unpaid Leave", other: "Other",
+  };
+
+  const inputStyle: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid var(--border)", fontSize: 14, background: "var(--surface)", color: "var(--text)", boxSizing: "border-box" };
+
+  return (
+    <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 80px", display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>My Leave</h2>
+        <button onClick={() => setShowForm(v => !v)} style={{ padding: "8px 16px", borderRadius: 10, background: "var(--primary)", color: "#fff", border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+          {showForm ? "Cancel" : "+ Request Leave"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ borderRadius: 14, border: "1px solid var(--primary)", padding: 16, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>New Leave Request</p>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: 4 }}>Leave Type</label>
+            <select style={inputStyle} value={leaveType} onChange={e => setLeaveType(e.target.value as import("@/lib/types").LeaveType)}>
+              {Object.entries(LEAVE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: 4 }}>Start Date</label>
+              <input style={inputStyle} type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: 4 }}>End Date</label>
+              <input style={inputStyle} type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+            </div>
+          </div>
+          {startDate && endDate && (
+            <p style={{ margin: 0, fontSize: 13, color: "var(--primary)", fontWeight: 600 }}>
+              {calcDays(startDate, endDate)} day{calcDays(startDate, endDate) !== 1 ? "s" : ""}
+            </p>
+          )}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", display: "block", marginBottom: 4 }}>Reason</label>
+            <textarea style={{ ...inputStyle, resize: "none" }} rows={3} value={reason} onChange={e => setReason(e.target.value)} placeholder="Brief reason for leave request…" />
+          </div>
+          <button onClick={submitRequest} disabled={submitting} style={{ padding: "13px 0", borderRadius: 12, background: "var(--primary)", color: "#fff", border: "none", fontWeight: 700, fontSize: 15, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.7 : 1 }}>
+            {submitting ? "Submitting…" : "Submit Request"}
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <p style={{ color: "var(--text-muted)", fontSize: 14 }}>Loading…</p>
+      ) : myRequests.length === 0 ? (
+        <div style={{ textAlign: "center", paddingTop: 40, color: "var(--text-muted)" }}>
+          <p style={{ fontSize: 14 }}>No leave requests yet.</p>
+          <p style={{ fontSize: 13 }}>Tap "+ Request Leave" to submit one.</p>
+        </div>
+      ) : myRequests.map(req => {
+        const statusColors: Record<string, [string, string]> = {
+          pending: ["#fef3c7", "#d97706"], approved: ["#dcfce7", "#16a34a"], declined: ["#fee2e2", "#dc2626"],
+        };
+        const [bg, fg] = statusColors[req.status] ?? ["var(--surface-2)", "var(--text-muted)"];
+        return (
+          <div key={req.id} style={{ borderRadius: 12, border: "1px solid var(--border)", padding: 14, background: "var(--surface)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <p style={{ margin: "0 0 2px", fontWeight: 700, fontSize: 14 }}>{LEAVE_LABELS[req.type]}</p>
+                <p style={{ margin: "0 0 2px", fontSize: 13, color: "var(--text-muted)" }}>
+                  {new Date(req.startDate).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })} – {new Date(req.endDate).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })} · {req.days} day{req.days !== 1 ? "s" : ""}
+                </p>
+                {req.reason && <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>"{req.reason}"</p>}
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 20, background: bg, color: fg, whiteSpace: "nowrap" }}>{req.status.toUpperCase()}</span>
+            </div>
+            {req.reviewNote && <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-muted)", borderTop: "1px solid var(--border)", paddingTop: 8 }}>Note from manager: {req.reviewNote}</p>}
+          </div>
+        );
+      })}
     </div>
   );
 }
