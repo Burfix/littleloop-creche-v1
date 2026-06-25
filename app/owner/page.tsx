@@ -9,13 +9,13 @@ import {
   getAdmissionsForSchool, updateAdmissionStatus,
   updateInvoiceStatus,
 } from "@/lib/db";
-import type { Admission, Child, CockpitStats, Invoice } from "@/lib/types";
+import type { Admission, Child, CockpitStats, Invoice, MedicalRecord } from "@/lib/types";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { BarChart2, Bell, ClipboardList, CreditCard, Settings, LogOut } from "lucide-react";
+import { BarChart2, Bell, ClipboardList, CreditCard, Settings, LogOut, Stethoscope } from "lucide-react";
 
-type Tab = "overview" | "admissions" | "billing" | "settings";
+type Tab = "overview" | "admissions" | "medical" | "billing" | "settings";
 
 export default function OwnerDashboard() {
   const { appUser, firebaseUser, signOut } = useAuth();
@@ -23,6 +23,8 @@ export default function OwnerDashboard() {
   const router = useRouter();
 
   const [tab, setTab] = useState<Tab>("overview");
+  const [medChildren, setMedChildren] = useState<Child[]>([]);
+  const [medLoading, setMedLoading] = useState(false);
   const [stats, setStats] = useState<CockpitStats | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
@@ -292,6 +294,10 @@ export default function OwnerDashboard() {
           />
         )}
 
+        {tab === "medical" && (
+          <MedicalPanel schoolId={school?.id ?? ""} />
+        )}
+
         {tab === "billing" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
@@ -428,6 +434,7 @@ export default function OwnerDashboard() {
         {([
           { id: "overview", Icon: BarChart2, label: "Overview" },
           { id: "admissions", Icon: ClipboardList, label: "Admissions" },
+          { id: "medical", Icon: Stethoscope, label: "Medical" },
           { id: "billing", Icon: CreditCard, label: "Billing" },
           { id: "settings", Icon: Settings, label: "Settings" },
         ] as const).map(({ id, Icon, label }) => (
@@ -898,6 +905,298 @@ function AdmissionsPanel({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Medical Panel ────────────────────────────────────────────────────────────
+
+function MedicalPanel({ schoolId }: { schoolId: string }) {
+  const { firebaseUser } = useAuth();
+  const [children, setChildren] = useState<Child[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedChild, setSelectedChild] = useState<Child | null>(null);
+  const [record, setRecord] = useState<MedicalRecord | null>(null);
+  const [recordLoading, setRecordLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Editable form state
+  const [allergies, setAllergies] = useState<MedicalRecord["allergies"]>([]);
+  const [medications, setMedications] = useState<MedicalRecord["medications"]>([]);
+  const [conditions, setConditions] = useState<MedicalRecord["conditions"]>([]);
+  const [emergencyContacts, setEmergencyContacts] = useState<MedicalRecord["emergencyContacts"]>([]);
+  const [dietary, setDietary] = useState<MedicalRecord["dietary"]>({
+    vegetarian: false, vegan: false, halal: false, kosher: false, glutenFree: false, dairyFree: false,
+  });
+  const [bloodType, setBloodType] = useState("");
+  const [doctorName, setDoctorName] = useState("");
+  const [doctorPractice, setDoctorPractice] = useState("");
+  const [doctorPhone, setDoctorPhone] = useState("");
+  const [medicalAidProvider, setMedicalAidProvider] = useState("");
+  const [medicalAidNumber, setMedicalAidNumber] = useState("");
+  const [medicalAidDependantCode, setMedicalAidDependantCode] = useState("");
+  const [notes, setNotes] = useState("");
+
+  useEffect(() => {
+    if (!schoolId) return;
+    import("@/lib/db").then(({ getChildrenForSchool }) => {
+      getChildrenForSchool(schoolId).then(kids => {
+        setChildren(kids);
+        setLoading(false);
+      });
+    });
+  }, [schoolId]);
+
+  async function loadRecord(child: Child) {
+    setSelectedChild(child);
+    setRecordLoading(true);
+    try {
+      const token = await firebaseUser?.getIdToken();
+      const res = await fetch(`/api/children/${child.id}/medical`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to load");
+      const { data } = await res.json();
+      const rec: MedicalRecord | null = data;
+      setRecord(rec);
+      // Populate form
+      setAllergies(rec?.allergies ?? []);
+      setMedications(rec?.medications ?? []);
+      setConditions(rec?.conditions ?? []);
+      setEmergencyContacts(rec?.emergencyContacts ?? []);
+      setDietary(rec?.dietary ?? { vegetarian: false, vegan: false, halal: false, kosher: false, glutenFree: false, dairyFree: false });
+      setBloodType(rec?.bloodType ?? "");
+      setDoctorName(rec?.doctorName ?? "");
+      setDoctorPractice(rec?.doctorPractice ?? "");
+      setDoctorPhone(rec?.doctorPhone ?? "");
+      setMedicalAidProvider(rec?.medicalAidProvider ?? "");
+      setMedicalAidNumber(rec?.medicalAidNumber ?? "");
+      setMedicalAidDependantCode(rec?.medicalAidDependantCode ?? "");
+      setNotes(rec?.notes ?? "");
+    } catch {
+      toast.error("Could not load medical record");
+    } finally {
+      setRecordLoading(false);
+    }
+  }
+
+  async function handleSave() {
+    if (!selectedChild) return;
+    setSaving(true);
+    try {
+      const token = await firebaseUser?.getIdToken();
+      const res = await fetch(`/api/children/${selectedChild.id}/medical`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          allergies, medications, conditions, emergencyContacts,
+          dietary, bloodType, doctorName, doctorPractice, doctorPhone,
+          medicalAidProvider, medicalAidNumber, medicalAidDependantCode, notes,
+        }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      toast.success("Medical record saved");
+    } catch {
+      toast.error("Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const SEVERITY_OPTIONS = ["mild", "moderate", "severe", "anaphylactic"] as const;
+  const BLOOD_TYPES = ["A+", "A−", "B+", "B−", "AB+", "AB−", "O+", "O−", "Unknown"];
+
+  const inputStyle: React.CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)", color: "var(--text)" };
+  const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: 4 };
+  const sectionStyle: React.CSSProperties = { borderRadius: 12, border: "1px solid var(--border)", padding: 16, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 12 };
+
+  if (loading) return <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading children…</div>;
+
+  // ── Child list view ──
+  if (!selectedChild) {
+    return (
+      <div style={{ padding: "0 0 32px" }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 16px" }}>Medical Records</h2>
+        {children.length === 0 ? (
+          <p style={{ color: "var(--text-muted)" }}>No enrolled children.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {children.map(child => (
+              <button
+                key={child.id}
+                onClick={() => loadRecord(child)}
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", textAlign: "left" }}
+              >
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 16, color: "var(--primary)", flexShrink: 0 }}>
+                  {child.firstName[0]}{child.lastName[0]}
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 600 }}>{child.firstName} {child.lastName}</p>
+                  <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>Tap to view / edit medical record</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Record edit view ──
+  if (recordLoading) return <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading…</div>;
+
+  return (
+    <div style={{ paddingBottom: 32 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+        <button onClick={() => setSelectedChild(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", fontSize: 13, fontWeight: 600, padding: 0 }}>
+          ← Back
+        </button>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{selectedChild.firstName} {selectedChild.lastName} — Medical</h2>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+        {/* Allergies */}
+        <div style={sectionStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <p style={{ ...labelStyle, marginBottom: 0 }}>Allergies</p>
+            <button onClick={() => setAllergies(a => [...a, { name: "", severity: "mild" }])} style={{ fontSize: 12, fontWeight: 600, color: "var(--primary)", background: "none", border: "none", cursor: "pointer" }}>+ Add</button>
+          </div>
+          {allergies.map((a, i) => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6, padding: 10, borderRadius: 8, background: "var(--surface-2)" }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input style={{ ...inputStyle, flex: 2 }} placeholder="Name (e.g. Peanuts)" value={a.name} onChange={e => { const n = [...allergies]; n[i] = { ...n[i], name: e.target.value }; setAllergies(n); }} />
+                <select style={{ ...inputStyle, flex: 1 }} value={a.severity} onChange={e => { const n = [...allergies]; n[i] = { ...n[i], severity: e.target.value as typeof a.severity }; setAllergies(n); }}>
+                  {SEVERITY_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <button onClick={() => setAllergies(a => a.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: 18, padding: "0 4px" }}>×</button>
+              </div>
+              <input style={inputStyle} placeholder="Reaction (e.g. hives, swelling)" value={a.reaction ?? ""} onChange={e => { const n = [...allergies]; n[i] = { ...n[i], reaction: e.target.value }; setAllergies(n); }} />
+              <input style={inputStyle} placeholder="Treatment (e.g. Administer EpiPen, call ambulance)" value={a.treatment ?? ""} onChange={e => { const n = [...allergies]; n[i] = { ...n[i], treatment: e.target.value }; setAllergies(n); }} />
+            </div>
+          ))}
+          {allergies.length === 0 && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>No allergies recorded.</p>}
+        </div>
+
+        {/* Medications */}
+        <div style={sectionStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <p style={{ ...labelStyle, marginBottom: 0 }}>Medications</p>
+            <button onClick={() => setMedications(m => [...m, { name: "", dose: "", frequency: "" }])} style={{ fontSize: 12, fontWeight: 600, color: "var(--primary)", background: "none", border: "none", cursor: "pointer" }}>+ Add</button>
+          </div>
+          {medications.map((m, i) => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6, padding: 10, borderRadius: 8, background: "var(--surface-2)" }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input style={{ ...inputStyle, flex: 2 }} placeholder="Medication name" value={m.name} onChange={e => { const n = [...medications]; n[i] = { ...n[i], name: e.target.value }; setMedications(n); }} />
+                <button onClick={() => setMedications(m => m.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: 18, padding: "0 4px" }}>×</button>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input style={{ ...inputStyle, flex: 1 }} placeholder="Dose (e.g. 2 puffs)" value={m.dose} onChange={e => { const n = [...medications]; n[i] = { ...n[i], dose: e.target.value }; setMedications(n); }} />
+                <input style={{ ...inputStyle, flex: 1 }} placeholder="Frequency (e.g. as needed)" value={m.frequency} onChange={e => { const n = [...medications]; n[i] = { ...n[i], frequency: e.target.value }; setMedications(n); }} />
+              </div>
+              <input style={inputStyle} placeholder="Special instructions" value={m.instructions ?? ""} onChange={e => { const n = [...medications]; n[i] = { ...n[i], instructions: e.target.value }; setMedications(n); }} />
+            </div>
+          ))}
+          {medications.length === 0 && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>No medications recorded.</p>}
+        </div>
+
+        {/* Conditions */}
+        <div style={sectionStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <p style={{ ...labelStyle, marginBottom: 0 }}>Medical Conditions</p>
+            <button onClick={() => setConditions(c => [...c, { name: "" }])} style={{ fontSize: 12, fontWeight: 600, color: "var(--primary)", background: "none", border: "none", cursor: "pointer" }}>+ Add</button>
+          </div>
+          {conditions.map((c, i) => (
+            <div key={i} style={{ display: "flex", gap: 8 }}>
+              <input style={{ ...inputStyle, flex: 2 }} placeholder="Condition (e.g. Asthma, ADHD)" value={c.name} onChange={e => { const n = [...conditions]; n[i] = { ...n[i], name: e.target.value }; setConditions(n); }} />
+              <input style={{ ...inputStyle, flex: 3 }} placeholder="Notes" value={c.notes ?? ""} onChange={e => { const n = [...conditions]; n[i] = { ...n[i], notes: e.target.value }; setConditions(n); }} />
+              <button onClick={() => setConditions(c => c.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: 18, padding: "0 4px" }}>×</button>
+            </div>
+          ))}
+          {conditions.length === 0 && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>No conditions recorded.</p>}
+        </div>
+
+        {/* Dietary */}
+        <div style={sectionStyle}>
+          <p style={labelStyle}>Dietary Requirements</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+            {(["vegetarian", "vegan", "halal", "kosher", "glutenFree", "dairyFree"] as const).map(key => (
+              <label key={key} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
+                <input type="checkbox" checked={dietary[key]} onChange={e => setDietary(d => ({ ...d, [key]: e.target.checked }))} />
+                {key === "glutenFree" ? "Gluten-free" : key === "dairyFree" ? "Dairy-free" : key.charAt(0).toUpperCase() + key.slice(1)}
+              </label>
+            ))}
+          </div>
+          <div>
+            <label style={labelStyle}>Other dietary notes</label>
+            <input style={inputStyle} placeholder="e.g. No pork products" value={dietary.other ?? ""} onChange={e => setDietary(d => ({ ...d, other: e.target.value }))} />
+          </div>
+        </div>
+
+        {/* Emergency Contacts */}
+        <div style={sectionStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <p style={{ ...labelStyle, marginBottom: 0 }}>Emergency Contacts</p>
+            <button onClick={() => setEmergencyContacts(c => [...c, { name: "", relationship: "", phone: "", canPickup: false }])} style={{ fontSize: 12, fontWeight: 600, color: "var(--primary)", background: "none", border: "none", cursor: "pointer" }}>+ Add</button>
+          </div>
+          {emergencyContacts.map((ec, i) => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6, padding: 10, borderRadius: 8, background: "var(--surface-2)" }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input style={{ ...inputStyle, flex: 2 }} placeholder="Name" value={ec.name} onChange={e => { const n = [...emergencyContacts]; n[i] = { ...n[i], name: e.target.value }; setEmergencyContacts(n); }} />
+                <input style={{ ...inputStyle, flex: 1 }} placeholder="Relationship" value={ec.relationship} onChange={e => { const n = [...emergencyContacts]; n[i] = { ...n[i], relationship: e.target.value }; setEmergencyContacts(n); }} />
+                <button onClick={() => setEmergencyContacts(c => c.filter((_, j) => j !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", fontSize: 18, padding: "0 4px" }}>×</button>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input style={{ ...inputStyle, flex: 1 }} placeholder="Phone number" value={ec.phone} onChange={e => { const n = [...emergencyContacts]; n[i] = { ...n[i], phone: e.target.value }; setEmergencyContacts(n); }} />
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <input type="checkbox" checked={ec.canPickup} onChange={e => { const n = [...emergencyContacts]; n[i] = { ...n[i], canPickup: e.target.checked }; setEmergencyContacts(n); }} />
+                  Authorised pickup
+                </label>
+              </div>
+            </div>
+          ))}
+          {emergencyContacts.length === 0 && <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>No emergency contacts added.</p>}
+        </div>
+
+        {/* Doctor & Medical Aid */}
+        <div style={sectionStyle}>
+          <p style={labelStyle}>Doctor</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Name</label><input style={inputStyle} value={doctorName} onChange={e => setDoctorName(e.target.value)} placeholder="Dr Smith" /></div>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Practice</label><input style={inputStyle} value={doctorPractice} onChange={e => setDoctorPractice(e.target.value)} placeholder="City Medical" /></div>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Phone</label><input style={inputStyle} value={doctorPhone} onChange={e => setDoctorPhone(e.target.value)} placeholder="011 000 0000" /></div>
+          </div>
+          <p style={{ ...labelStyle, marginTop: 4 }}>Medical Aid</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Provider</label><input style={inputStyle} value={medicalAidProvider} onChange={e => setMedicalAidProvider(e.target.value)} placeholder="Discovery" /></div>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Member No.</label><input style={inputStyle} value={medicalAidNumber} onChange={e => setMedicalAidNumber(e.target.value)} /></div>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Dependant Code</label><input style={inputStyle} value={medicalAidDependantCode} onChange={e => setMedicalAidDependantCode(e.target.value)} /></div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Blood Type</label>
+              <select style={inputStyle} value={bloodType} onChange={e => setBloodType(e.target.value)}>
+                <option value="">Unknown</option>
+                {BLOOD_TYPES.map(bt => <option key={bt} value={bt}>{bt}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* General Notes */}
+        <div style={sectionStyle}>
+          <label style={labelStyle}>General Notes</label>
+          <textarea style={{ ...inputStyle, resize: "none" }} rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any other information staff should know…" />
+        </div>
+
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{ padding: "14px 0", borderRadius: 12, background: "var(--primary)", color: "#fff", border: "none", fontWeight: 700, fontSize: 15, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}
+        >
+          {saving ? "Saving…" : "Save Medical Record"}
+        </button>
+
+      </div>
     </div>
   );
 }

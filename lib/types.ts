@@ -207,3 +207,75 @@ export interface Admission {
   createdAt: string;
   updatedAt: string;
 }
+
+// ─── Medical Records ──────────────────────────────────────────────────────────
+
+export type AllergySeverity = "mild" | "moderate" | "severe" | "anaphylactic";
+
+export interface Allergy {
+  name: string;                    // e.g. "Peanuts", "Bee stings"
+  severity: AllergySeverity;
+  reaction?: string;               // e.g. "Hives, swelling"
+  treatment?: string;              // e.g. "Administer EpiPen, call ambulance"
+}
+
+export interface Medication {
+  name: string;                    // e.g. "Ventolin"
+  dose: string;                    // e.g. "2 puffs"
+  frequency: string;               // e.g. "As needed for asthma"
+  instructions?: string;           // e.g. "Keep in child's bag at all times"
+  prescribedBy?: string;           // Doctor name
+}
+
+export interface EmergencyContact {
+  name: string;
+  relationship: string;            // e.g. "Grandmother", "Uncle"
+  phone: string;
+  canPickup: boolean;
+}
+
+export interface MedicalCondition {
+  name: string;                    // e.g. "Asthma", "Epilepsy", "ADHD"
+  notes?: string;
+}
+
+export interface MedicalRecord {
+  id: string;                      // == childId
+  childId: string;
+  schoolId: string;
+  // General
+  bloodType?: string;              // "A+", "O-", etc.
+  // Allergies
+  allergies: Allergy[];
+  // Medications to administer at school
+  medications: Medication[];
+  // Medical conditions staff should know
+  conditions: MedicalCondition[];
+  // Dietary requirements
+  dietary: {
+    vegetarian: boolean;
+    vegan: boolean;
+    halal: boolean;
+    kosher: boolean;
+    glutenFree: boolean;
+    dairyFree: boolean;
+    other?: string;
+  };
+  // Primary doctor
+  doctorName?: string;
+  doctorPractice?: string;
+  doctorPhone?: string;
+  // Medical aid / insurance
+  medicalAidProvider?: string;
+  medicalAidNumber?: string;
+  medicalAidDependantCode?: string;
+  // Additional notes
+  notes?: string;
+  // Emergency contacts (beyond parents already in the system)
+  emergencyContacts: EmergencyContact[];
+  // Audit
+  createdAt: string;
+  updatedAt: string;
+  lastUpdatedBy?: string;          // uid of staff who last edited
+}
+

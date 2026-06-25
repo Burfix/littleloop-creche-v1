@@ -460,7 +460,7 @@ export async function getCockpitStats(schoolId: string): Promise<CockpitStats> {
 }
 
 // ─── Admissions ───────────────────────────────────────────────────────────────
-import type { Admission, AdmissionStatus } from "./types";
+import type { Admission, AdmissionStatus, MedicalRecord } from "./types";
 
 function toAdmission(snap: QueryDocumentSnapshot<DocumentData>): Admission {
   const d = snap.data();
@@ -508,4 +508,34 @@ export async function updateAdmissionStatus(
     ...extra,
     updatedAt: serverTimestamp(),
   });
+}
+
+// ─── Medical Records ──────────────────────────────────────────────────────────
+
+export async function getMedicalRecord(childId: string): Promise<MedicalRecord | null> {
+  const snap = await getDoc(doc(db, "medical_records", childId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as MedicalRecord;
+}
+
+export async function upsertMedicalRecord(
+  childId: string,
+  schoolId: string,
+  data: Partial<Omit<MedicalRecord, "id" | "childId" | "schoolId" | "createdAt" | "updatedAt">>,
+  updatedBy: string
+): Promise<void> {
+  const ref = doc(db, "medical_records", childId);
+  const existing = await getDoc(ref);
+  await setDoc(
+    ref,
+    {
+      ...data,
+      childId,
+      schoolId,
+      updatedAt: serverTimestamp(),
+      lastUpdatedBy: updatedBy,
+      ...(existing.exists() ? {} : { createdAt: serverTimestamp() }),
+    },
+    { merge: true }
+  );
 }

@@ -11,24 +11,26 @@ import {
   subscribeToThread, sendMessage, updateInvoiceProof,
 } from "@/lib/db";
 import { storage } from "@/lib/firebase";
-import type { Child, DailyUpdate, Moment, Invoice, Message } from "@/lib/types";
+import type { Child, DailyUpdate, Moment, Invoice, Message, MedicalRecord } from "@/lib/types";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { Home, Image, CreditCard, MessageCircle, LogOut } from "lucide-react";
+import { Home, Image, CreditCard, MessageCircle, LogOut, Stethoscope } from "lucide-react";
 
-type Tab = "home" | "moments" | "billing" | "chat";
+type Tab = "home" | "moments" | "billing" | "chat" | "medical";
 
 const MOOD_LABELS: Record<string, string> = {
   "😊": "Happy", "😐": "Okay", "😢": "Upset", "😴": "Tired", "🤒": "Unwell",
 };
 
 export default function ParentDashboard() {
-  const { appUser, signOut } = useAuth();
+  const { appUser, firebaseUser, signOut } = useAuth();
   const { school } = useSchool();
   const router = useRouter();
 
   const [tab, setTab] = useState<Tab>("home");
+  const [medRecord, setMedRecord] = useState<MedicalRecord | null>(null);
+  const [medLoading, setMedLoading] = useState(false);
   const [children, setChildren] = useState<Child[]>([]);
   const [selectedChild, setSelectedChild] = useState<Child | null>(null);
   const [update, setUpdate] = useState<DailyUpdate | null>(null);
@@ -318,6 +320,10 @@ export default function ParentDashboard() {
         )}
 
         {/* ── BILLING TAB ── */}
+        {tab === "medical" && selectedChild && (
+          <ParentMedicalView childId={selectedChild.id} firebaseUser={firebaseUser} />
+        )}
+
         {tab === "billing" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 700 }}>Billing</h3>
@@ -439,6 +445,7 @@ export default function ParentDashboard() {
           { id: "moments", Icon: Image, label: "Moments" },
           { id: "billing", Icon: CreditCard, label: "Billing" },
           { id: "chat", Icon: MessageCircle, label: "Chat" },
+          { id: "medical", Icon: Stethoscope, label: "Medical" },
         ] as const).map(({ id, Icon, label }) => (
           <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
             <Icon size={20} />
@@ -446,6 +453,162 @@ export default function ParentDashboard() {
           </button>
         ))}
       </nav>
+    </div>
+  );
+}
+
+// ─── Parent Medical View (read-only) ─────────────────────────────────────────
+
+import type { User } from "firebase/auth";
+
+function ParentMedicalView({ childId, firebaseUser }: { childId: string; firebaseUser: User | null }) {
+  const [record, setRecord] = useState<MedicalRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!firebaseUser) return;
+    firebaseUser.getIdToken().then(token =>
+      fetch(`/api/children/${childId}/medical`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    ).then(r => r.json())
+      .then(({ data }) => setRecord(data))
+      .catch(console.warn)
+      .finally(() => setLoading(false));
+  }, [childId, firebaseUser]);
+
+  if (loading) return <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading…</div>;
+
+  if (!record) return (
+    <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
+      <p style={{ fontSize: 32, marginBottom: 8 }}>🏥</p>
+      <p style={{ fontWeight: 600, marginBottom: 4 }}>No medical record yet</p>
+      <p style={{ fontSize: 13 }}>Your school will add your child's medical information here. Please contact them directly if you need to provide allergy or medication details urgently.</p>
+    </div>
+  );
+
+  const SEVERITY_COLOR: Record<string, string> = {
+    anaphylactic: "#dc2626", severe: "#ea580c", moderate: "#d97706", mild: "#65a30d",
+  };
+  const row = { display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--border)" } as React.CSSProperties;
+  const sectionStyle = { borderRadius: 12, border: "1px solid var(--border)", padding: 16, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 4 } as React.CSSProperties;
+  const sectionTitle = { fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 10px" } as React.CSSProperties;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingBottom: 32 }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 4px" }}>Medical Record</h2>
+      <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>Managed by your school. Contact them to make changes.</p>
+
+      {/* Allergies */}
+      {record.allergies.length > 0 && (
+        <div style={sectionStyle}>
+          <p style={sectionTitle}>Allergies</p>
+          {record.allergies.map((a, i) => (
+            <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                <span style={{ background: SEVERITY_COLOR[a.severity] ?? "#999", color: "#fff", borderRadius: 4, fontSize: 10, padding: "1px 6px", fontWeight: 700 }}>{a.severity.toUpperCase()}</span>
+                <strong style={{ fontSize: 14 }}>{a.name}</strong>
+              </div>
+              {a.reaction && <p style={{ margin: "2px 0", fontSize: 13, color: "var(--text-muted)" }}>Reaction: {a.reaction}</p>}
+              {a.treatment && <p style={{ margin: "2px 0", fontSize: 13, color: "#dc2626", fontWeight: 500 }}>Treatment: {a.treatment}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Medications */}
+      {record.medications.length > 0 && (
+        <div style={sectionStyle}>
+          <p style={sectionTitle}>Medications at School</p>
+          {record.medications.map((m, i) => (
+            <div key={i} style={row}>
+              <div>
+                <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>{m.name}</p>
+                <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>{m.dose} · {m.frequency}</p>
+                {m.instructions && <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>{m.instructions}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Conditions */}
+      {record.conditions.length > 0 && (
+        <div style={sectionStyle}>
+          <p style={sectionTitle}>Medical Conditions</p>
+          {record.conditions.map((c, i) => (
+            <div key={i} style={row}>
+              <div>
+                <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>{c.name}</p>
+                {c.notes && <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>{c.notes}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Dietary */}
+      {(() => {
+        const flags = (["vegetarian","vegan","halal","kosher","glutenFree","dairyFree"] as const).filter(k => record.dietary?.[k]);
+        if (!flags.length && !record.dietary?.other) return null;
+        return (
+          <div style={sectionStyle}>
+            <p style={sectionTitle}>Dietary Requirements</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {flags.map(f => (
+                <span key={f} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 20, fontSize: 13, padding: "4px 10px" }}>
+                  {f === "glutenFree" ? "Gluten-free" : f === "dairyFree" ? "Dairy-free" : f.charAt(0).toUpperCase() + f.slice(1)}
+                </span>
+              ))}
+            </div>
+            {record.dietary?.other && <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--text-muted)" }}>{record.dietary.other}</p>}
+          </div>
+        );
+      })()}
+
+      {/* Emergency contacts */}
+      {record.emergencyContacts.length > 0 && (
+        <div style={sectionStyle}>
+          <p style={sectionTitle}>Emergency Contacts</p>
+          {record.emergencyContacts.map((ec, i) => (
+            <div key={i} style={row}>
+              <div>
+                <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>{ec.name} <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>· {ec.relationship}</span></p>
+                <a href={`tel:${ec.phone}`} style={{ fontSize: 13, color: "var(--primary)" }}>{ec.phone}</a>
+              </div>
+              {ec.canPickup && <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a", background: "#dcfce7", borderRadius: 20, padding: "2px 8px", alignSelf: "center" }}>PICKUP</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Doctor & Medical aid */}
+      {(record.doctorName || record.medicalAidProvider) && (
+        <div style={sectionStyle}>
+          {record.doctorName && (
+            <>
+              <p style={sectionTitle}>Doctor</p>
+              <p style={{ margin: "0 0 2px", fontWeight: 600, fontSize: 14 }}>{record.doctorName}</p>
+              {record.doctorPractice && <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>{record.doctorPractice}</p>}
+              {record.doctorPhone && <a href={`tel:${record.doctorPhone}`} style={{ fontSize: 13, color: "var(--primary)" }}>{record.doctorPhone}</a>}
+            </>
+          )}
+          {record.medicalAidProvider && (
+            <>
+              <p style={{ ...sectionTitle, marginTop: 12 }}>Medical Aid</p>
+              <p style={{ margin: "0 0 2px", fontWeight: 600, fontSize: 14 }}>{record.medicalAidProvider}</p>
+              {record.medicalAidNumber && <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>Member: {record.medicalAidNumber}{record.medicalAidDependantCode ? ` · Dep: ${record.medicalAidDependantCode}` : ""}</p>}
+            </>
+          )}
+        </div>
+      )}
+
+      {record.notes && (
+        <div style={sectionStyle}>
+          <p style={sectionTitle}>Additional Notes</p>
+          <p style={{ margin: 0, fontSize: 13, whiteSpace: "pre-wrap" }}>{record.notes}</p>
+        </div>
+      )}
     </div>
   );
 }

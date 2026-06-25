@@ -12,7 +12,7 @@ import {
 } from "@/lib/db";
 import { storage } from "@/lib/firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
-import type { ClassRoom, Child, DailyUpdate, Task, MoodEmoji, MealRecord } from "@/lib/types";
+import type { ClassRoom, Child, DailyUpdate, Task, MoodEmoji, MealRecord, MedicalRecord } from "@/lib/types";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
 import { Users, Camera, CheckSquare, LogOut, ChevronDown, ChevronUp } from "lucide-react";
@@ -37,6 +37,7 @@ export default function TeacherDashboard() {
   const [newTask, setNewTask] = useState("");
   const [uploading, setUploading] = useState(false);
   const [expandedChild, setExpandedChild] = useState<string | null>(null);
+  const [medicalRecords, setMedicalRecords] = useState<Record<string, MedicalRecord>>({});
   const [momentChildId, setMomentChildId] = useState<string>("");
   const [savingChild, setSavingChild] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -486,6 +487,77 @@ export default function TeacherDashboard() {
                           ))}
                         </div>
                       </div>
+
+
+                      {/* ── Safety Panel ── */}
+                      {(() => {
+                        const med = medicalRecords[child.id];
+                        const hasAlerts = med && (
+                          med.allergies.length > 0 ||
+                          med.medications.length > 0 ||
+                          med.conditions.length > 0 ||
+                          med.emergencyContacts.length > 0
+                        );
+                        if (!hasAlerts) return null;
+                        const severityColor: Record<string, string> = {
+                          anaphylactic: "#dc2626",
+                          severe: "#ea580c",
+                          moderate: "#d97706",
+                          mild: "#65a30d",
+                        };
+                        return (
+                          <div style={{ borderRadius: 10, border: "1.5px solid #fca5a5", background: "#fff1f2", padding: 12 }}>
+                            <p style={{ margin: "0 0 10px", fontSize: 12, fontWeight: 700, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                              ⚠️ Safety Info
+                            </p>
+                            {med.allergies.length > 0 && (
+                              <div style={{ marginBottom: 8 }}>
+                                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 600, color: "#7f1d1d" }}>ALLERGIES</p>
+                                {med.allergies.map((a, i) => (
+                                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                                    <span style={{ background: severityColor[a.severity] ?? "#999", color: "#fff", borderRadius: 4, fontSize: 10, padding: "1px 5px", fontWeight: 700 }}>
+                                      {a.severity.toUpperCase()}
+                                    </span>
+                                    <span style={{ fontSize: 13, fontWeight: 600 }}>{a.name}</span>
+                                    {a.treatment && <span style={{ fontSize: 12, color: "#7f1d1d" }}>— {a.treatment}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {med.medications.length > 0 && (
+                              <div style={{ marginBottom: 8 }}>
+                                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 600, color: "#7f1d1d" }}>MEDICATIONS</p>
+                                {med.medications.map((m, i) => (
+                                  <div key={i} style={{ fontSize: 13, marginBottom: 2 }}>
+                                    <strong>{m.name}</strong> — {m.dose}, {m.frequency}
+                                    {m.instructions && <span style={{ color: "#7f1d1d" }}> ({m.instructions})</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {med.conditions.length > 0 && (
+                              <div style={{ marginBottom: 8 }}>
+                                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 600, color: "#7f1d1d" }}>CONDITIONS</p>
+                                {med.conditions.map((c, i) => (
+                                  <div key={i} style={{ fontSize: 13, marginBottom: 2 }}>
+                                    <strong>{c.name}</strong>{c.notes ? ` — ${c.notes}` : ""}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {med.emergencyContacts.filter(e => e.canPickup).length > 0 && (
+                              <div>
+                                <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 600, color: "#7f1d1d" }}>AUTHORISED PICKUP</p>
+                                {med.emergencyContacts.filter(e => e.canPickup).map((e, i) => (
+                                  <div key={i} style={{ fontSize: 13, marginBottom: 2 }}>
+                                    {e.name} ({e.relationship}) — <a href={`tel:${e.phone}`} style={{ color: "#dc2626" }}>{e.phone}</a>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Notes */}
                       <div>

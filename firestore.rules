@@ -174,5 +174,30 @@ service cloud.firestore {
       );
       allow delete: if isSuperAdmin();
     }
+
+    // ── Medical Records ───────────────────────────────────────────
+    match /medical_records/{childId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId) ||
+        isTeacherOf(resource.data.schoolId) ||
+        (request.auth.uid in get(/databases/$(database)/documents/children/$(childId)).data.parentIds)
+      );
+      allow create, update: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(request.resource.data.schoolId) ||
+        isTeacherOf(request.resource.data.schoolId)
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // ── FCM Tokens ────────────────────────────────────────────────
+    match /fcm_tokens/{tokenId} {
+      allow create, update: if isSignedIn() &&
+        request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() &&
+        resource.data.uid == request.auth.uid;
+      allow read: if false;
+    }
   }
 }
