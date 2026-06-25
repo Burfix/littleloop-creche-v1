@@ -68,8 +68,8 @@ export default function AdminDashboard() {
   };
 
   const handleInvite = async () => {
-    if (!inviteForm.email || !inviteForm.displayName || !inviteForm.schoolId) {
-      toast.error("Email, name and school are required");
+    if (!inviteForm.email || !inviteForm.displayName || (inviteForm.role !== "superadmin" && !inviteForm.schoolId)) {
+      toast.error(inviteForm.role === "superadmin" ? "Email and name required" : "Email, name and school are required");
       return;
     }
     setSaving(true);
@@ -241,6 +241,7 @@ export default function AdminDashboard() {
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {inviteForm.role !== "superadmin" && (
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
                   School
@@ -257,6 +258,7 @@ export default function AdminDashboard() {
                   {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
+              )}
 
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
@@ -267,6 +269,7 @@ export default function AdminDashboard() {
                   value={inviteForm.role}
                   onChange={e => setInviteForm(p => ({ ...p, role: e.target.value }))}
                 >
+                  <option value="superadmin">Super Admin</option>
                   <option value="owner">Owner</option>
                   <option value="teacher">Teacher</option>
                   <option value="parent">Parent</option>

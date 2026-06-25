@@ -5,12 +5,17 @@ export async function POST(req: NextRequest) {
   try {
     const { email, displayName, role, schoolId, schoolSlug, branchId, childIds } = await req.json();
 
-    if (!email || !displayName || !role || !schoolId) {
+    if (!email || !displayName || !role) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    if (!["teacher", "parent", "owner"].includes(role)) {
+    if (!["teacher", "parent", "owner", "superadmin"].includes(role)) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+    }
+
+    // superadmin doesn't need a schoolId
+    if (role !== "superadmin" && !schoolId) {
+      return NextResponse.json({ error: "School is required for this role" }, { status: 400 });
     }
 
     const auth = adminAuth();
@@ -38,7 +43,7 @@ export async function POST(req: NextRequest) {
       email,
       displayName,
       role,
-      schoolId,
+      schoolId: role === "superadmin" ? null : schoolId,
       createdAt: new Date().toISOString(),
     };
     if (branchId) userData.branchId = branchId;
