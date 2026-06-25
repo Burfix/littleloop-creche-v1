@@ -9,7 +9,7 @@ import {
   getAdmissionsForSchool, updateAdmissionStatus,
   updateInvoiceStatus,
 } from "@/lib/db";
-import type { Admission, Child, CockpitStats, Invoice, MedicalRecord, JournalEntry, DevelopmentDomain, WaitlistEntry, HrProfile, LeaveRequest, LeaveType, ContractType } from "@/lib/types";
+import type { Admission, AppUser, Child, CockpitStats, Invoice, MedicalRecord, JournalEntry, DevelopmentDomain, WaitlistEntry, HrProfile, LeaveRequest, LeaveType, ContractType } from "@/lib/types";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
