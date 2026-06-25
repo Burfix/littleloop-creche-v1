@@ -1,4 +1,6 @@
 "use client";
+import { signInWithCustomToken } from "firebase/auth";
+import { auth as firebaseClientAuth } from "@/lib/firebase";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -9,7 +11,7 @@ import { format } from "date-fns";
 import toast from "react-hot-toast";
 import { Plus, LogOut, Globe, Users, Mail } from "lucide-react";
 
-type Tab = "schools" | "invite";
+type Tab = "schools" | "invite" | "users";
 
 export default function AdminDashboard() {
   const { appUser, signOut } = useAuth();
@@ -119,7 +121,7 @@ export default function AdminDashboard() {
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 0 }}>
-          {(["schools", "invite"] as Tab[]).map(t => (
+          {(["schools", "invite", "users"] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
               flex: 1, padding: "10px 0", border: "none", background: "none",
               borderBottom: tab === t ? "2px solid var(--brand)" : "2px solid transparent",
@@ -127,7 +129,7 @@ export default function AdminDashboard() {
               fontWeight: tab === t ? 600 : 400, fontSize: 14, cursor: "pointer",
               textTransform: "capitalize",
             }}>
-              {t === "schools" ? "Schools" : "Invite User"}
+              {t === "schools" ? "Schools" : t === "invite" ? "Invite User" : "Users"}
             </button>
           ))}
         </div>
@@ -211,6 +213,12 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
+        )}
+
+
+        {/* ── USERS TAB ── */}
+        {tab === "users" && (
+          <UsersPanel schools={schools} />
         )}
 
         {/* ── INVITE TAB ── */}
@@ -394,6 +402,131 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Users Panel with Impersonation ──────────────────────────────────────────
+
+function UsersPanel({ schools }: { schools: School[] }) {
+  const { appUser } = useAuth();
+  const router = useRouter();
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>("all");
+  const [impersonating, setImpersonating] = useState<string | null>(null);
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+
+  useEffect(() => {
+    setLoading(true);
+    import("firebase/auth").then(m => m.getAuth().currentUser?.getIdToken()).then(async token => {
+      if (!token) return;
+      const url = selectedSchoolId === "all"
+        ? "/api/admin/users"
+        : `/api/admin/users?schoolId=${selectedSchoolId}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setUsers(data.users ?? []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, [selectedSchoolId]);
+
+  async function impersonate(targetUid: string, targetName: string, targetRole: string) {
+    setImpersonating(targetUid);
+    try {
+      const token = await import("firebase/auth").then(({ getAuth }) => getAuth().currentUser?.getIdToken());
+      const res = await fetch("/api/admin/impersonate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ targetUid }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      // Store superadmin session info
+      sessionStorage.setItem("impersonating", JSON.stringify({
+        originalUid: appUser?.uid,
+        targetName, targetRole,
+      }));
+
+      // Sign in as target user
+      await signInWithCustomToken(firebaseClientAuth, data.customToken);
+
+      // Redirect to their portal
+      const dest: Record<string, string> = { owner: "/owner", teacher: "/teacher", parent: "/parent" };
+      router.push(dest[targetRole] ?? "/");
+    } catch (e: any) {
+      import("react-hot-toast").then(({ default: toast }) => toast.error(e.message ?? "Impersonation failed"));
+    } finally {
+      setImpersonating(null);
+    }
+  }
+
+  const ROLE_COLORS: Record<string, [string, string]> = {
+    superadmin: ["#ede9fe", "#7c3aed"],
+    owner: ["#dbeafe", "#1d4ed8"],
+    teacher: ["#dcfce7", "#15803d"],
+    parent: ["#fef3c7", "#b45309"],
+  };
+
+  const filtered = users.filter(u => roleFilter === "all" || u.role === roleFilter);
+  const schoolMap = new Map(schools.map(s => [s.id, s.name]));
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <select
+          value={selectedSchoolId}
+          onChange={e => setSelectedSchoolId(e.target.value)}
+          style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)", color: "var(--text)" }}
+        >
+          <option value="all">All schools</option>
+          {schools.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+        <select
+          value={roleFilter}
+          onChange={e => setRoleFilter(e.target.value)}
+          style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)", color: "var(--text)" }}
+        >
+          {["all", "owner", "teacher", "parent", "superadmin"].map(r => (
+            <option key={r} value={r}>{r === "all" ? "All roles" : r.charAt(0).toUpperCase() + r.slice(1)}</option>
+          ))}
+        </select>
+      </div>
+
+      {loading ? (
+        <p style={{ color: "var(--text-muted)", fontSize: 14 }}>Loading users…</p>
+      ) : filtered.length === 0 ? (
+        <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No users found.</p>
+      ) : filtered.map(u => {
+        const [bg, fg] = ROLE_COLORS[u.role] ?? ["var(--surface-2)", "var(--text-muted)"];
+        const canImpersonate = ["owner", "teacher", "parent"].includes(u.role);
+        return (
+          <div key={u.uid} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)" }}>
+            <div style={{ width: 38, height: 38, borderRadius: "50%", background: bg, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 15, color: fg, flexShrink: 0 }}>
+              {(u.displayName ?? u.email ?? "?")[0].toUpperCase()}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: "0 0 2px", fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.displayName ?? u.email}</p>
+              <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {u.email} {u.schoolId && schoolMap.has(u.schoolId) ? `· ${schoolMap.get(u.schoolId)}` : ""}
+              </p>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: bg, color: fg, whiteSpace: "nowrap", flexShrink: 0 }}>
+              {u.role}
+            </span>
+            {canImpersonate && (
+              <button
+                onClick={() => impersonate(u.uid, u.displayName ?? u.email, u.role)}
+                disabled={impersonating === u.uid}
+                style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--primary)", background: "none", color: "var(--primary)", fontWeight: 700, fontSize: 12, cursor: impersonating === u.uid ? "not-allowed" : "pointer", flexShrink: 0 }}
+              >
+                {impersonating === u.uid ? "…" : "▶ View as"}
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

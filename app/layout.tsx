@@ -6,6 +6,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { SchoolProvider } from "@/lib/school-context";
 import { ErrorBoundary } from "@/lib/error-boundary";
 import { Toaster } from "react-hot-toast";
+import { ImpersonationBanner } from "@/lib/ImpersonationBanner";
 import { getSchoolBySlugServer } from "@/lib/server-school";
 import { resolveTenantSlugFromHost } from "@/lib/tenant";
 
@@ -40,6 +41,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <ErrorBoundary>
           <AuthProvider>
             <SchoolProvider initialSlug={tenantSlug} initialSchool={initialSchool}>
+              <ImpersonationBanner />
               {children}
               <Toaster
                 position="top-center"
