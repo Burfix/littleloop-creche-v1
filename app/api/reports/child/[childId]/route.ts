@@ -53,7 +53,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     );
 
     const safeName = `${child.firstName}-${child.lastName}`.replace(/\s+/g, "-").toLowerCase();
-    return new NextResponse(buffer as Buffer, {
+    return new NextResponse(buffer, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

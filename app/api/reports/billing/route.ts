@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
       createElement(BillingReport, { schoolName, month: monthLabel, rows, generatedAt })
     );
 
-    return new NextResponse(buffer as Buffer, {
+    return new NextResponse(buffer, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
