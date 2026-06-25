@@ -175,3 +175,35 @@ export interface CockpitStats {
   staffCount: number;
   photoConsentPending: number;
 }
+
+// ─── Admissions ───────────────────────────────────────────────────────────────
+export type AdmissionStatus =
+  | "pending"    // just submitted, awaiting owner review
+  | "reviewing"  // owner opened it
+  | "approved"   // owner approved — child record created, parent invited
+  | "declined"   // owner declined
+  | "enrolled";  // parent completed setup, child active
+
+export interface Admission {
+  id: string;
+  schoolId: string;
+  // Child info
+  childFirstName: string;
+  childLastName: string;
+  childDateOfBirth: string;         // YYYY-MM-DD
+  // Primary guardian
+  parentName: string;
+  parentEmail: string;
+  parentPhone: string;
+  // Optional
+  notes?: string;                   // from applicant
+  internalNotes?: string;           // from owner
+  desiredStartDate?: string;        // YYYY-MM-DD
+  // Admin
+  status: AdmissionStatus;
+  reviewedBy?: string;              // uid of owner who actioned
+  reviewedAt?: string;
+  childId?: string;                 // set on approval
+  createdAt: string;
+  updatedAt: string;
+}

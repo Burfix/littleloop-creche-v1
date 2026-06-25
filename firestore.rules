@@ -162,5 +162,17 @@ service cloud.firestore {
         // Must belong to the school
         userSchoolId() == request.resource.data.schoolId;
     }
+
+    // ── Admissions ───────────────────────────────────────────────
+    // Public create (no auth required — anyone can apply)
+    // Only owners and superadmins can read/update
+    match /admissions/{admissionId} {
+      allow create: if true; // public application form
+      allow read, update: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId)
+      );
+      allow delete: if isSuperAdmin();
+    }
   }
 }

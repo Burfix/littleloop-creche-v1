@@ -458,3 +458,54 @@ export async function getCockpitStats(schoolId: string): Promise<CockpitStats> {
     photoConsentPending: photoConsentCountSnap.data().count,
   };
 }
+
+// ─── Admissions ───────────────────────────────────────────────────────────────
+import type { Admission, AdmissionStatus } from "./types";
+
+function toAdmission(snap: QueryDocumentSnapshot<DocumentData>): Admission {
+  const d = snap.data();
+  return {
+    ...d,
+    id: snap.id,
+    createdAt: toDate(d.createdAt),
+    updatedAt: toDate(d.updatedAt),
+  } as Admission;
+}
+
+export async function createAdmission(
+  data: Omit<Admission, "id" | "createdAt" | "updatedAt">
+): Promise<string> {
+  const ref = await addDoc(collection(db, "admissions"), {
+    ...data,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function getAdmissionsForSchool(
+  schoolId: string,
+  statusFilter?: AdmissionStatus[]
+): Promise<Admission[]> {
+  const constraints: QueryConstraint[] = [
+    where("schoolId", "==", schoolId),
+    orderBy("createdAt", "desc"),
+  ];
+  if (statusFilter?.length) {
+    constraints.push(where("status", "in", statusFilter));
+  }
+  const snap = await getDocs(query(collection(db, "admissions"), ...constraints));
+  return snap.docs.map(toAdmission);
+}
+
+export async function updateAdmissionStatus(
+  admissionId: string,
+  status: AdmissionStatus,
+  extra: Partial<Pick<Admission, "reviewedBy" | "reviewedAt" | "childId" | "internalNotes">> = {}
+): Promise<void> {
+  await updateDoc(doc(db, "admissions", admissionId), {
+    status,
+    ...extra,
+    updatedAt: serverTimestamp(),
+  });
+}
