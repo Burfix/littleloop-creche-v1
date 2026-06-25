@@ -7,7 +7,7 @@ import { getAllSchools } from "@/lib/db";
 import type { School } from "@/lib/types";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { Plus, LogOut, Globe, Users, Copy, Check, Mail } from "lucide-react";
+import { Plus, LogOut, Globe, Users, Mail } from "lucide-react";
 
 type Tab = "schools" | "invite";
 
@@ -21,7 +21,6 @@ export default function AdminDashboard() {
   const [showAdd, setShowAdd] = useState(false);
   const [saving, setSaving] = useState(false);
   const [setupLink, setSetupLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const [schoolForm, setSchoolForm] = useState({
     name: "", slug: "", ownerName: "", ownerEmail: "", phone: "", address: "",
@@ -96,13 +95,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const copyLink = (link: string) => {
-    navigator.clipboard.writeText(link);
-    setCopied(true);
-    toast.success("Link copied!");
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   if (loading || !appUser) {
     return <div className="page-loader"><div className="spinner" /></div>;
   }
@@ -174,7 +166,7 @@ export default function AdminDashboard() {
                   ✓ School created — setup email sent to owner
                 </p>
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: "#166534" }}>
-                  They'll receive an email to set their password and access their dashboard.
+                  They&apos;ll receive an email to set their password and access their dashboard.
                 </p>
               </div>
             )}
@@ -226,7 +218,7 @@ export default function AdminDashboard() {
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Invite a user</h3>
             <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>
-              They'll receive a setup link to create their password and access their dashboard immediately.
+              They&apos;ll receive a setup link to create their password and access their dashboard immediately.
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -307,7 +299,7 @@ export default function AdminDashboard() {
                   ✓ Invite email sent
                 </p>
                 <p style={{ margin: "4px 0 0", fontSize: 12, color: "#166534" }}>
-                  They'll receive an email to set their password and access their dashboard immediately.
+                  They&apos;ll receive an email to set their password and access their dashboard immediately.
                 </p>
               </div>
             )}

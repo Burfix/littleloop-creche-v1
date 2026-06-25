@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
+import NextImage from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useSchool } from "@/lib/school-context";
 import {
   getChildrenForParent, getDailyUpdateForChild,
   getMomentsForChild, getInvoicesForParent,
-  subscribeToThread, sendMessage,
+  subscribeToThread, sendMessage, updateInvoiceProof,
 } from "@/lib/db";
+import { storage } from "@/lib/firebase";
 import type { Child, DailyUpdate, Moment, Invoice, Message } from "@/lib/types";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
 import { Home, Image, CreditCard, MessageCircle, LogOut } from "lucide-react";
@@ -33,6 +36,7 @@ export default function ParentDashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMsg, setNewMsg] = useState("");
+  const [uploadingInvoiceId, setUploadingInvoiceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -84,6 +88,39 @@ export default function ParentDashboard() {
     router.replace("/login");
   };
 
+  const handleProofUpload = async (invoice: Invoice, files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+
+    if (!file.type.match(/^(image\/.*|application\/pdf)$/)) {
+      toast.error("Upload an image or PDF proof");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Proof must be smaller than 5MB");
+      return;
+    }
+
+    setUploadingInvoiceId(invoice.id);
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `schools/${invoice.schoolId}/proofs/${invoice.id}/${file.lastModified}_${safeName}`;
+      const ref = storageRef(storage, path);
+      const snap = await uploadBytes(ref, file);
+      const proofUrl = await getDownloadURL(snap.ref);
+
+      await updateInvoiceProof(invoice.id, proofUrl);
+      setInvoices(prev => prev.map(item => item.id === invoice.id ? { ...item, proofUrl } : item));
+      toast.success("Proof uploaded");
+    } catch (err) {
+      console.error("Payment proof upload failed:", err);
+      toast.error("Could not upload proof");
+    } finally {
+      setUploadingInvoiceId(null);
+    }
+  };
+
   if (!appUser || loading) {
     return <div className="page-loader"><div className="spinner" /></div>;
   }
@@ -133,11 +170,20 @@ export default function ParentDashboard() {
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div className="avatar" style={{ background: "rgba(255,255,255,0.2)", color: "white", fontSize: 20 }}>
                   {selectedChild.avatarUrl
-                    ? <img src={selectedChild.avatarUrl} alt="" style={{ width: "100%", height: "100%", borderRadius: "50%" }} />
+                    ? (
+                        <NextImage
+                          src={selectedChild.avatarUrl}
+                          alt=""
+                          width={40}
+                          height={40}
+                          unoptimized
+                          style={{ width: "100%", height: "100%", borderRadius: "50%" }}
+                        />
+                      )
                     : selectedChild.firstName[0]}
                 </div>
                 <div>
-                  <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>Today's update</p>
+                  <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>Today&apos;s update</p>
                   <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
                     {selectedChild.firstName} {update?.checkedIn ? "is in care ✓" : "not yet checked in"}
                   </h3>
@@ -233,7 +279,7 @@ export default function ParentDashboard() {
         {tab === "moments" && (
           <div>
             <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700 }}>
-              {selectedChild?.firstName}'s moments
+              {selectedChild?.firstName}&apos;s moments
             </h3>
             {moments.length === 0 ? (
               <div style={{ textAlign: "center", padding: "48px 0", color: "var(--text-muted)" }}>
@@ -243,11 +289,14 @@ export default function ParentDashboard() {
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {moments.map(m => (
-                  <div key={m.id} style={{ borderRadius: 10, overflow: "hidden", position: "relative" }}>
-                    <img
+                  <div key={m.id} style={{ borderRadius: 10, overflow: "hidden", position: "relative", aspectRatio: "1" }}>
+                    <NextImage
                       src={m.mediaUrl}
                       alt={m.caption ?? ""}
-                      style={{ width: "100%", aspectRatio: "1", objectFit: "cover", display: "block" }}
+                      fill
+                      unoptimized
+                      sizes="50vw"
+                      style={{ objectFit: "cover" }}
                     />
                     {m.caption && (
                       <div style={{
@@ -309,9 +358,23 @@ export default function ParentDashboard() {
                 )}
 
                 {(inv.status === "outstanding" || inv.status === "overdue") && (
-                  <button className="btn btn-primary" style={{ width: "100%", marginTop: 12, fontSize: 14 }}>
-                    Upload proof of payment
-                  </button>
+                  <>
+                    <label className="btn btn-primary" style={{ width: "100%", marginTop: 12, fontSize: 14, cursor: "pointer" }}>
+                      {uploadingInvoiceId === inv.id ? <span className="spinner" /> : "Upload proof of payment"}
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        disabled={uploadingInvoiceId === inv.id}
+                        style={{ display: "none" }}
+                        onChange={event => handleProofUpload(inv, event.target.files)}
+                      />
+                    </label>
+                    {inv.proofUrl && (
+                      <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--success)" }}>
+                        ✓ Proof uploaded. The school will verify payment.
+                      </p>
+                    )}
+                  </>
                 )}
                 {inv.status === "paid" && inv.paidAt && (
                   <p style={{ margin: "12px 0 0", fontSize: 12, color: "var(--success)" }}>
@@ -327,7 +390,7 @@ export default function ParentDashboard() {
         {tab === "chat" && (
           <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 180px)" }}>
             <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 700 }}>
-              Chat with {selectedChild?.firstName}'s teacher
+              Chat with {selectedChild?.firstName}&apos;s teacher
             </h3>
             <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
               {messages.length === 0 && (

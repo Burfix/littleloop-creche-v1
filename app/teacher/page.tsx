@@ -310,7 +310,7 @@ export default function TeacherDashboard() {
               />
             </div>
             <p style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center" }}>
-              Photos are shared privately with each child's approved guardians only.
+              Photos are shared privately with each child&apos;s approved guardians only.
             </p>
           </div>
         )}
@@ -332,7 +332,7 @@ export default function TeacherDashboard() {
               </button>
             </div>
             {tasks.length === 0 && (
-              <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No tasks yet — you're ahead!</p>
+              <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No tasks yet — you&apos;re ahead!</p>
             )}
             {tasks.map(task => (
               <div key={task.id} className="card"

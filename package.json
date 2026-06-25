@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "verify": "npm run lint && npm run test && npm run build",
+    "firebase:deploy:rules": "FIREBASE_CLI_DISABLE_UPDATE_CHECK=true firebase deploy --only firestore:rules,firestore:indexes,storage:rules"
   },
   "dependencies": {
     "date-fns": "^4.4.0",
@@ -25,7 +28,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "firebase-tools": "^15.22.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   }
 }

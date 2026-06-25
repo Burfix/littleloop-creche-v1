@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { getSchoolBySlug } from "@/lib/db";
+import { resolveTenantSlugFromHost } from "@/lib/tenant";
 import type { School } from "@/lib/types";
 
 interface SchoolContextValue {
@@ -16,29 +17,33 @@ const SchoolContext = createContext<SchoolContextValue>({
   slug: "",
 });
 
-export function SchoolProvider({ children }: { children: React.ReactNode }) {
-  const [school, setSchool] = useState<School | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [slug, setSlug] = useState("");
+export function SchoolProvider({
+  children,
+  initialSlug = "",
+  initialSchool = null,
+}: {
+  children: React.ReactNode;
+  initialSlug?: string;
+  initialSchool?: School | null;
+}) {
+  const [school, setSchool] = useState<School | null>(initialSchool);
+  const [loading, setLoading] = useState(!initialSchool);
+  const [slug, setSlug] = useState(initialSlug);
 
   useEffect(() => {
-    // Resolve tenant from subdomain
-    // e.g. pebblestones.littleloop.app → slug = "pebblestones"
-    // On localhost or bare domain → use "demo" or env override
-    const host = window.location.hostname;
-    const parts = host.split(".");
+    const resolvedSlug = initialSlug || resolveTenantSlugFromHost(window.location.host);
 
-    let resolvedSlug = process.env.NEXT_PUBLIC_DEFAULT_SCHOOL_SLUG || "demo";
-
-    // If subdomain present and not "www"
-    if (parts.length >= 3 && parts[0] !== "www") {
-      resolvedSlug = parts[0];
+    if (initialSchool && initialSchool.slug === resolvedSlug) {
+      if (initialSchool.primaryColor) {
+        document.documentElement.style.setProperty("--brand", initialSchool.primaryColor);
+      }
+      return;
     }
 
-    setSlug(resolvedSlug);
-
-    getSchoolBySlug(resolvedSlug)
-      .then((s) => {
+    void Promise.resolve()
+      .then(async () => {
+        setSlug(resolvedSlug);
+        const s = await getSchoolBySlug(resolvedSlug);
         setSchool(s);
         // Apply school brand colour as CSS custom property
         if (s?.primaryColor) {
@@ -46,7 +51,7 @@ export function SchoolProvider({ children }: { children: React.ReactNode }) {
         }
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [initialSchool, initialSlug]);
 
   return (
     <SchoolContext.Provider value={{ school, loading, slug }}>

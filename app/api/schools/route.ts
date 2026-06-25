@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    const rateLimited = await enforceRateLimit(req, {
+      namespace: "schools",
+      limit: 3,
+      windowSeconds: 60 * 60,
+    });
+    if (rateLimited) return rateLimited;
+
     const { name, slug, ownerName, ownerEmail, phone, address, branches } = await req.json();
 
     if (!name || !slug || !ownerEmail || !ownerName) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useSchool } from "@/lib/school-context";
@@ -57,7 +58,14 @@ export default function LoginPage() {
       {/* Logo / School name */}
       <div style={{ textAlign: "center", marginBottom: 40 }}>
         {logoUrl ? (
-          <img src={logoUrl} alt={schoolName} style={{ height: 56, objectFit: "contain", marginBottom: 12 }} />
+          <Image
+            src={logoUrl}
+            alt={schoolName}
+            width={160}
+            height={56}
+            unoptimized
+            style={{ height: 56, width: "auto", objectFit: "contain", marginBottom: 12 }}
+          />
         ) : (
           <div style={{
             width: 56, height: 56, borderRadius: 16, background: "var(--brand)",

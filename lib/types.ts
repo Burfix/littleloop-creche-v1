@@ -50,6 +50,9 @@ export interface Child {
   notes?: string;
   photoConsent: boolean;
   enrolledAt: string;
+  deletionStatus?: "pending_erasure";
+  deletionRequestedAt?: string;
+  deletionRequestedBy?: string;
 }
 
 // ─── Classes ─────────────────────────────────────────────────────────────────
@@ -152,6 +155,7 @@ export interface Task {
 export interface Message {
   id: string;
   schoolId: string;
+  childId?: string;
   threadId: string; // `${teacherId}_${parentId}_${childId}`
   senderId: string;
   senderRole: UserRole;
