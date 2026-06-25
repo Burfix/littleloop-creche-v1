@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useSchool } from "@/lib/school-context";
@@ -277,6 +277,14 @@ export default function OwnerDashboard() {
               ))}
             </div>
 
+            <div className="card">
+              <h4 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600 }}>Invite staff or parents</h4>
+              <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--text-muted)" }}>
+                They get a setup link to create their own password.
+              </p>
+              <InviteForm schoolId={school.id} schoolSlug={school.slug} />
+            </div>
+
             <button className="btn btn-danger" style={{ width: "100%" }} onClick={handleSignOut}>
               Sign out
             </button>
@@ -297,6 +305,74 @@ export default function OwnerDashboard() {
           </button>
         ))}
       </nav>
+    </div>
+  );
+}
+
+// Inline invite component for owner dashboard
+function InviteForm({ schoolId, schoolSlug }: { schoolId: string; schoolSlug: string }) {
+  const [form, setForm] = React.useState({ email: "", displayName: "", role: "teacher" });
+  const [saving, setSaving] = React.useState(false);
+  const [link, setLink] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  const handleInvite = async () => {
+    if (!form.email || !form.displayName) { toast.error("Name and email required"); return; }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, schoolId, schoolSlug }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setLink(data.setupLink);
+      toast.success("Invite link ready!");
+      setForm({ email: "", displayName: "", role: "teacher" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copy = () => {
+    if (!link) return;
+    navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <select className="input" value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}>
+        <option value="teacher">Teacher</option>
+        <option value="parent">Parent</option>
+        <option value="owner">Owner</option>
+      </select>
+      <input className="input" placeholder="Full name" value={form.displayName}
+        onChange={e => setForm(p => ({ ...p, displayName: e.target.value }))} />
+      <input className="input" type="email" placeholder="Email address" value={form.email}
+        onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
+      <button className="btn btn-primary" style={{ width: "100%" }} onClick={handleInvite} disabled={saving}>
+        {saving ? <span className="spinner" /> : "Generate invite link"}
+      </button>
+      {link && (
+        <div style={{ background: "#f0fdf4", borderRadius: 8, padding: 12 }}>
+          <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 600, color: "#166534" }}>Invite link ready</p>
+          <p style={{ margin: "0 0 8px", fontSize: 11, color: "#166534", wordBreak: "break-all" }}>{link}</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-secondary" style={{ flex: 1, fontSize: 12, padding: "8px" }} onClick={copy}>
+              {copied ? "Copied!" : "Copy link"}
+            </button>
+            <a href={`mailto:${form.email}?subject=Your LittleLoop invite&body=Hi, here is your setup link: ${link}`}
+              className="btn btn-primary" style={{ flex: 1, fontSize: 12, padding: "8px", textDecoration: "none", textAlign: "center" }}>
+              Email them
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
