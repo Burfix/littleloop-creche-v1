@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { SchoolProvider } from "@/lib/school-context";
+import { ErrorBoundary } from "@/lib/error-boundary";
 import { Toaster } from "react-hot-toast";
 
 export const metadata: Metadata = {
@@ -22,21 +23,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <AuthProvider>
-          <SchoolProvider>
-            {children}
-            <Toaster
-              position="top-center"
-              toastOptions={{
-                style: {
-                  borderRadius: "10px",
-                  fontSize: "14px",
-                  maxWidth: "360px",
-                },
-              }}
-            />
-          </SchoolProvider>
-        </AuthProvider>
+        <ErrorBoundary>
+          <AuthProvider>
+            <SchoolProvider>
+              {children}
+              <Toaster
+                position="top-center"
+                toastOptions={{
+                  style: {
+                    borderRadius: "10px",
+                    fontSize: "14px",
+                    maxWidth: "360px",
+                  },
+                }}
+              />
+            </SchoolProvider>
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

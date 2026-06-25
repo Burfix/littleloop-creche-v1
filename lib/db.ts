@@ -219,7 +219,7 @@ export async function getInvoicesForSchool(schoolId: string): Promise<Invoice[]>
 export async function updateInvoiceStatus(invoiceId: string, status: Invoice["status"], proofUrl?: string): Promise<void> {
   const update: Record<string, unknown> = { status };
   if (proofUrl) update.proofUrl = proofUrl;
-  if (status === "paid") update.paidAt = new Date().toISOString();
+  if (status === "paid") update.paidAt = serverTimestamp();
   await updateDoc(doc(db, "invoices", invoiceId), update);
 }
 
@@ -279,7 +279,7 @@ export async function sendMessage(data: Omit<Message, "id" | "createdAt">): Prom
 export async function getCockpitStats(schoolId: string): Promise<CockpitStats> {
   const today = new Date().toISOString().split("T")[0];
 
-  const [children, invoices, updates] = await Promise.all([
+  const [children, invoices, updates, staffSnap] = await Promise.all([
     getChildrenForSchool(schoolId),
     getInvoicesForSchool(schoolId),
     getDocs(query(
@@ -317,12 +317,6 @@ export async function getCockpitStats(schoolId: string): Promise<CockpitStats> {
     collection(db, "children"),
     where("schoolId", "==", schoolId),
     where("photoConsent", "==", false)
-  ));
-
-  const staffSnap = await getDocs(query(
-    collection(db, "users"),
-    where("schoolId", "==", schoolId),
-    where("role", "==", "teacher")
   ));
 
   return {
