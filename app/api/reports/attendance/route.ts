@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
     const generatedAt = new Date().toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg" });
 
     const buffer = await renderToBuffer(
-      createElement(AttendanceReport, { schoolName, month: monthLabel, rows, generatedAt })
+      createElement(AttendanceReport as any, { schoolName, month: monthLabel, rows, generatedAt })
     );
 
     return new NextResponse(buffer, {

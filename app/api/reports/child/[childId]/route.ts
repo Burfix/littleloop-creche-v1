@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     const generatedAt = new Date().toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg" });
 
     const buffer = await renderToBuffer(
-      createElement(ChildProfileReport, { schoolName, child, medical, parentNames, generatedAt })
+      createElement(ChildProfileReport as any, { schoolName, child, medical, parentNames, generatedAt })
     );
 
     const safeName = `${child.firstName}-${child.lastName}`.replace(/\s+/g, "-").toLowerCase();
