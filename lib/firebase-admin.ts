@@ -23,5 +23,7 @@ export function adminAuth() {
 }
 
 export function adminDb() {
-  return getFirestore(getAdminApp());
+  const db = getFirestore(getAdminApp());
+  db.settings({ ignoreUndefinedProperties: true });
+  return db;
 }
