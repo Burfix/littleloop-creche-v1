@@ -3,7 +3,7 @@ import { adminAuth, adminDb } from "@/lib/firebase-admin";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, displayName, role, schoolId, schoolSlug, branchId, childIds } = await req.json();
+    const { email, displayName, role, schoolId, schoolSlug, branchId, childIds, phone } = await req.json();
 
     if (!email || !displayName || !role) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
       displayName,
       role,
       schoolId: role === "superadmin" ? null : schoolId,
+      phone: phone ?? null,
       createdAt: new Date().toISOString(),
     };
     if (branchId) userData.branchId = branchId;

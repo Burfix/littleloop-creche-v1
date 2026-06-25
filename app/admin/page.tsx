@@ -28,7 +28,7 @@ export default function AdminDashboard() {
   });
 
   const [inviteForm, setInviteForm] = useState({
-    email: "", displayName: "", role: "teacher", schoolId: "", schoolSlug: "",
+    email: "", displayName: "", role: "teacher", schoolId: "", schoolSlug: "", phone: "",
   });
   const [inviteLink, setInviteLink] = useState<string | null>(null);
 
@@ -88,7 +88,7 @@ export default function AdminDashboard() {
 
       setInviteLink(data.setupLink);
       toast.success(data.message);
-      setInviteForm({ email: "", displayName: "", role: "teacher", schoolId: "", schoolSlug: "" });
+      setInviteForm({ email: "", displayName: "", role: "teacher", schoolId: "", schoolSlug: "", phone: "" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to send invite");
     } finally {
@@ -292,6 +292,15 @@ export default function AdminDashboard() {
                 <input className="input" type="email" placeholder="e.g. sarah@school.co.za"
                   value={inviteForm.email}
                   onChange={e => setInviteForm(p => ({ ...p, email: e.target.value }))} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
+                  Phone (WhatsApp)
+                </label>
+                <input className="input" type="tel" placeholder="+27 xx xxx xxxx"
+                  value={inviteForm.phone}
+                  onChange={e => setInviteForm(p => ({ ...p, phone: e.target.value }))} />
               </div>
 
               <button className="btn btn-primary" style={{ width: "100%", marginTop: 4 }}

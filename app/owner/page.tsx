@@ -311,7 +311,7 @@ export default function OwnerDashboard() {
 
 // Inline invite component for owner dashboard
 function InviteForm({ schoolId, schoolSlug }: { schoolId: string; schoolSlug: string }) {
-  const [form, setForm] = React.useState({ email: "", displayName: "", role: "teacher" });
+  const [form, setForm] = React.useState({ email: "", displayName: "", role: "teacher", phone: "" });
   const [saving, setSaving] = React.useState(false);
   const [link, setLink] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
@@ -329,7 +329,7 @@ function InviteForm({ schoolId, schoolSlug }: { schoolId: string; schoolSlug: st
       if (!res.ok) throw new Error(data.error);
       setLink(data.setupLink);
       toast.success("Invite link ready!");
-      setForm({ email: "", displayName: "", role: "teacher" });
+      setForm({ email: "", displayName: "", role: "teacher", phone: "" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed");
     } finally {
@@ -355,6 +355,8 @@ function InviteForm({ schoolId, schoolSlug }: { schoolId: string; schoolSlug: st
         onChange={e => setForm(p => ({ ...p, displayName: e.target.value }))} />
       <input className="input" type="email" placeholder="Email address" value={form.email}
         onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
+      <input className="input" type="tel" placeholder="Phone (WhatsApp) +27 xx xxx xxxx" value={form.phone}
+        onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} />
       <button className="btn btn-primary" style={{ width: "100%" }} onClick={handleInvite} disabled={saving}>
         {saving ? <span className="spinner" /> : "Generate invite link"}
       </button>
