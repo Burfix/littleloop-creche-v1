@@ -1,17 +1,17 @@
 "use client";
 /**
  * Shown at top of every portal when superadmin is impersonating a user.
- * Reads from sessionStorage (set by admin page before full-page redirect).
- * Exit: signs out current session, redirects to /admin.
+ * Exit restores the superadmin session via a stored custom token — no sign-out.
  */
 import { useEffect, useState } from "react";
-import { getAuth } from "firebase/auth";
+import { getAuth, signInWithCustomToken } from "firebase/auth";
 
 export function ImpersonationBanner() {
   const [info, setInfo] = useState<{
     originalUid: string;
     targetName: string;
     targetRole: string;
+    restoreToken: string;
   } | null>(null);
   const [leaving, setLeaving] = useState(false);
 
@@ -22,7 +22,7 @@ export function ImpersonationBanner() {
     } catch {}
   }, []);
 
-  // Also push body down so content isn't hidden behind the banner
+  // Push body down so portal content isn't hidden under the banner
   useEffect(() => {
     if (info) document.body.style.paddingTop = "42px";
     else document.body.style.paddingTop = "";
@@ -34,7 +34,13 @@ export function ImpersonationBanner() {
   async function exit() {
     setLeaving(true);
     sessionStorage.removeItem("impersonating");
-    try { await getAuth().signOut(); } catch {}
+    try {
+      // Restore superadmin session — no logout prompt
+      await signInWithCustomToken(getAuth(), info!.restoreToken);
+    } catch {
+      // Fallback: plain sign-out if token is expired (>1h)
+      try { await getAuth().signOut(); } catch {}
+    }
     window.location.href = "/admin";
   }
 
@@ -66,7 +72,7 @@ export function ImpersonationBanner() {
           display: "flex", alignItems: "center", gap: 6,
         }}
       >
-        {leaving ? "Exiting…" : "✕ Stop impersonating"}
+        {leaving ? "Returning…" : "✕ Stop impersonating"}
       </button>
     </div>
   );

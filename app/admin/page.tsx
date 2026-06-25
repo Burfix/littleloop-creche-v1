@@ -443,10 +443,11 @@ function UsersPanel({ schools }: { schools: School[] }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // Store superadmin session info
+      // Store superadmin session info + restore token (avoids sign-out on exit)
       sessionStorage.setItem("impersonating", JSON.stringify({
         originalUid: appUser?.uid,
         targetName, targetRole,
+        restoreToken: data.restoreToken,
       }));
 
       // Sign in as target user
