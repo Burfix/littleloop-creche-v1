@@ -203,6 +203,16 @@ service cloud.firestore {
       );
     }
 
+    // ── Waiting List ──────────────────────────────────────────────
+    // Public create, owner read/update only
+    match /waitlist/{entryId} {
+      allow create: if true;
+      allow read, update: if isSignedIn() && (
+        isSuperAdmin() || isOwnerOf(resource.data.schoolId)
+      );
+      allow delete: if isSuperAdmin() || isOwnerOf(resource.data.schoolId);
+    }
+
     // ── Medical Records ───────────────────────────────────────────
     match /medical_records/{childId} {
       allow read: if isSignedIn() && (

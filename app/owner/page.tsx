@@ -9,13 +9,13 @@ import {
   getAdmissionsForSchool, updateAdmissionStatus,
   updateInvoiceStatus,
 } from "@/lib/db";
-import type { Admission, Child, CockpitStats, Invoice, MedicalRecord, JournalEntry, DevelopmentDomain } from "@/lib/types";
+import type { Admission, Child, CockpitStats, Invoice, MedicalRecord, JournalEntry, DevelopmentDomain, WaitlistEntry } from "@/lib/types";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { BarChart2, Bell, BookOpen, ClipboardList, CreditCard, Settings, LogOut, Stethoscope, TrendingUp } from "lucide-react";
+import { BarChart2, Bell, BookOpen, ClipboardList, CreditCard, List, Settings, LogOut, Stethoscope, TrendingUp } from "lucide-react";
 
-type Tab = "overview" | "admissions" | "medical" | "journal" | "billing" | "analytics" | "settings";
+type Tab = "overview" | "admissions" | "waitlist" | "medical" | "journal" | "billing" | "analytics" | "settings";
 
 export default function OwnerDashboard() {
   const { appUser, firebaseUser, signOut } = useAuth();
@@ -283,6 +283,10 @@ export default function OwnerDashboard() {
         {/* ── BILLING TAB ── */}
 
         {/* ── ADMISSIONS TAB ── */}
+        {tab === "waitlist" && school && (
+          <WaitlistPanel schoolId={school.id} schoolSlug={school.slug} firebaseUser={firebaseUser} />
+        )}
+
         {tab === "admissions" && (
           <AdmissionsPanel
             schoolId={school?.id ?? appUser.schoolId ?? ""}
@@ -376,6 +380,7 @@ export default function OwnerDashboard() {
         {([
           { id: "overview", Icon: BarChart2, label: "Overview" },
           { id: "admissions", Icon: ClipboardList, label: "Admissions" },
+          { id: "waitlist", Icon: List, label: "Waitlist" },
           { id: "medical", Icon: Stethoscope, label: "Medical" },
           { id: "journal", Icon: BookOpen, label: "Journal" },
           { id: "billing", Icon: CreditCard, label: "Billing" },
@@ -1758,6 +1763,207 @@ function AnalyticsPanel({ schoolId, firebaseUser }: { schoolId: string; firebase
         </div>
       </div>
 
+    </div>
+  );
+}
+
+// ─── Waitlist Panel ───────────────────────────────────────────────────────────
+
+function WaitlistPanel({ schoolId, schoolSlug, firebaseUser }: {
+  schoolId: string; schoolSlug: string; firebaseUser: User | null;
+}) {
+  const [entries, setEntries] = useState<WaitlistEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<WaitlistEntry["status"] | "all">("waiting");
+  const [selected, setSelected] = useState<WaitlistEntry | null>(null);
+  const [notes, setNotes] = useState("");
+  const [acting, setActing] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const waitlistUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/waitlist`;
+
+  useEffect(() => {
+    if (!schoolId || !firebaseUser) return;
+    firebaseUser.getIdToken().then(token =>
+      fetch(`/api/waitlist/school/${schoolId}`, { headers: { Authorization: `Bearer ${token}` } })
+    ).then(r => r.json())
+      .then(({ entries: e }) => { setEntries(e ?? []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [schoolId, firebaseUser]);
+
+  async function action(entryId: string, act: string, internalNotes?: string) {
+    setActing(true);
+    try {
+      const token = await firebaseUser?.getIdToken();
+      const res = await fetch(`/api/waitlist/${entryId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: act, internalNotes }),
+      });
+      if (!res.ok) throw new Error("Action failed");
+      const result = await res.json();
+
+      setEntries(prev => prev.map(e =>
+        e.id === entryId
+          ? { ...e, status: act === "offer" ? "offered" : act === "decline" ? "declined" : act === "convert" ? "converted" : e.status, internalNotes: internalNotes ?? e.internalNotes }
+          : e
+      ));
+
+      if (act === "convert" && result.admissionId) {
+        toast.success("Converted to admission — find them in the Admissions tab");
+      } else if (act === "offer") {
+        toast.success("Place offered");
+      } else if (act === "decline") {
+        toast.success("Entry declined");
+      } else {
+        toast.success("Notes saved");
+      }
+      setSelected(null);
+    } catch { toast.error("Action failed"); }
+    finally { setActing(false); }
+  }
+
+  const filtered = filter === "all" ? entries : entries.filter(e => e.status === filter);
+  const counts: Record<string, number> = { all: entries.length, waiting: 0, offered: 0, declined: 0, converted: 0 };
+  entries.forEach(e => { counts[e.status] = (counts[e.status] ?? 0) + 1; });
+
+  const statusStyle = (s: string): React.CSSProperties => {
+    const map: Record<string, [string, string]> = {
+      waiting: ["#fef3c7", "#d97706"], offered: ["#dbeafe", "#3b82f6"],
+      declined: ["#fee2e2", "#dc2626"], converted: ["#dcfce7", "#16a34a"],
+    };
+    const [bg, fg] = map[s] ?? ["var(--surface-2)", "var(--text-muted)"];
+    return { background: bg, color: fg, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20 };
+  };
+
+  if (loading) return <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading…</div>;
+
+  // ── Detail view ──
+  if (selected) {
+    const entry = entries.find(e => e.id === selected.id) ?? selected;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: 32 }}>
+        <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary)", fontSize: 13, fontWeight: 600, padding: 0, textAlign: "left" }}>← Back</button>
+
+        <div style={{ borderRadius: 14, border: "1px solid var(--border)", padding: 16, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <p style={{ margin: "0 0 2px", fontWeight: 800, fontSize: 17 }}>{entry.childFirstName} {entry.childLastName}</p>
+              <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>DOB: {entry.childDateOfBirth || "—"}</p>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+              <span style={statusStyle(entry.status)}>{entry.status.toUpperCase()}</span>
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Position #{entry.position}</span>
+            </div>
+          </div>
+
+          {[["Parent", entry.parentName], ["Email", entry.parentEmail], ["Phone", entry.parentPhone],
+            ["Desired start", entry.desiredStartDate || "—"]].map(([l, v]) => (
+            <div key={l} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+              <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{l}</span>
+              <span style={{ fontSize: 13, fontWeight: 500 }}>{v}</span>
+            </div>
+          ))}
+          {entry.notes && (
+            <div style={{ padding: "8px 10px", background: "var(--surface-2)", borderRadius: 8, fontSize: 13 }}>
+              <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>APPLICANT NOTES</p>
+              {entry.notes}
+            </div>
+          )}
+        </div>
+
+        <div style={{ borderRadius: 12, border: "1px solid var(--border)", padding: 14, background: "var(--surface)" }}>
+          <label style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>INTERNAL NOTES</label>
+          <textarea
+            rows={3}
+            defaultValue={entry.internalNotes ?? ""}
+            onChange={e => setNotes(e.target.value)}
+            style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface-2)", color: "var(--text)", resize: "none" }}
+            placeholder="Notes visible to staff only…"
+          />
+          <button onClick={() => action(entry.id, "notes", notes)} disabled={acting} style={{ marginTop: 8, padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-2)", fontSize: 12, fontWeight: 600, cursor: "pointer", color: "var(--text)" }}>
+            Save notes
+          </button>
+        </div>
+
+        {entry.status === "waiting" && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => action(entry.id, "offer", notes || entry.internalNotes)} disabled={acting} style={{ flex: 2, padding: "12px 0", borderRadius: 12, background: "var(--primary)", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+              {acting ? "…" : "🎉 Offer a Place"}
+            </button>
+            <button onClick={() => action(entry.id, "decline", notes || entry.internalNotes)} disabled={acting} style={{ flex: 1, padding: "12px 0", borderRadius: 12, border: "1px solid #dc2626", background: "none", fontWeight: 700, fontSize: 14, cursor: "pointer", color: "#dc2626" }}>
+              Decline
+            </button>
+          </div>
+        )}
+        {entry.status === "offered" && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => action(entry.id, "convert", notes || entry.internalNotes)} disabled={acting} style={{ flex: 2, padding: "12px 0", borderRadius: 12, background: "#16a34a", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+              {acting ? "…" : "✓ Convert to Admission"}
+            </button>
+            <button onClick={() => action(entry.id, "decline")} disabled={acting} style={{ flex: 1, padding: "12px 0", borderRadius: 12, border: "1px solid var(--border)", background: "none", fontWeight: 600, fontSize: 13, cursor: "pointer", color: "var(--text-muted)" }}>
+              Withdraw
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── List view ──
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, paddingBottom: 32 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Waiting List</h2>
+        <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{counts.waiting} waiting</span>
+      </div>
+
+      {/* Share link */}
+      <div style={{ borderRadius: 12, border: "1px solid var(--border)", padding: 12, background: "var(--surface)", display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ flex: 1 }}>
+          <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>WAITLIST LINK</p>
+          <p style={{ margin: 0, fontSize: 12, color: "var(--text)", wordBreak: "break-all" }}>{waitlistUrl}</p>
+        </div>
+        <button
+          onClick={() => { navigator.clipboard.writeText(waitlistUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+          style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-2)", fontSize: 12, fontWeight: 600, cursor: "pointer", color: "var(--text)", whiteSpace: "nowrap" }}
+        >
+          {copied ? "✓ Copied" : "Copy"}
+        </button>
+      </div>
+
+      {/* Status filter */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {(["waiting", "offered", "converted", "declined", "all"] as const).map(s => (
+          <button key={s} onClick={() => setFilter(s)} style={{ padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: "pointer", border: filter === s ? "2px solid var(--primary)" : "1px solid var(--border)", background: filter === s ? "var(--primary-light)" : "var(--surface-2)", color: filter === s ? "var(--primary)" : "var(--text-muted)" }}>
+            {s.charAt(0).toUpperCase() + s.slice(1)} ({counts[s] ?? 0})
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "40px 0", color: "var(--text-muted)" }}>
+          <p style={{ fontSize: 32 }}>📋</p>
+          <p style={{ fontSize: 14 }}>No {filter === "all" ? "" : filter} entries.</p>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {filtered
+            .sort((a, b) => a.position - b.position)
+            .map(entry => (
+              <button key={entry.id} onClick={() => { setSelected(entry); setNotes(entry.internalNotes ?? ""); }} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)", cursor: "pointer", textAlign: "left" }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, color: "var(--primary)", flexShrink: 0 }}>
+                  #{entry.position}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: "0 0 2px", fontWeight: 700, fontSize: 14 }}>{entry.childFirstName} {entry.childLastName}</p>
+                  <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.parentName} · {entry.parentEmail}</p>
+                </div>
+                <span style={statusStyle(entry.status)}>{entry.status}</span>
+              </button>
+            ))}
+        </div>
+      )}
     </div>
   );
 }

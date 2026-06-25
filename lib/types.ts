@@ -312,3 +312,35 @@ export interface JournalEntry {
   createdAt: string;
   updatedAt: string;
 }
+
+// ─── Waiting List ─────────────────────────────────────────────────────────────
+
+export type WaitlistStatus = "waiting" | "offered" | "declined" | "converted";
+
+export interface WaitlistEntry {
+  id: string;
+  schoolId: string;
+  // Child info
+  childFirstName: string;
+  childLastName: string;
+  childDateOfBirth: string;      // YYYY-MM-DD
+  // Primary guardian
+  parentName: string;
+  parentEmail: string;
+  parentPhone: string;
+  // Optional
+  desiredStartDate?: string;
+  notes?: string;                // from applicant
+  internalNotes?: string;        // from owner
+  // Position on the list (1-based, set on creation)
+  position: number;
+  // Status
+  status: WaitlistStatus;
+  offeredAt?: string;
+  offeredBy?: string;            // uid of owner who offered
+  convertedAt?: string;
+  convertedToAdmissionId?: string;
+  // Audit
+  createdAt: string;
+  updatedAt: string;
+}
