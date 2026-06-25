@@ -175,6 +175,34 @@ service cloud.firestore {
       allow delete: if isSuperAdmin();
     }
 
+    // ── Learning Journals ─────────────────────────────────────────
+    match /journal_entries/{entryId} {
+      // Parents see only entries shared with them, for their own child
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId) ||
+        isTeacherOf(resource.data.schoolId) ||
+        (resource.data.sharedWithParent == true &&
+          request.auth.uid in get(/databases/$(database)/documents/children/$(resource.data.childId)).data.parentIds)
+      );
+      // Only staff write
+      allow create: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(request.resource.data.schoolId) ||
+        isTeacherOf(request.resource.data.schoolId)
+      );
+      allow update: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId) ||
+        isTeacherOf(resource.data.schoolId)
+      );
+      allow delete: if isSignedIn() && (
+        isSuperAdmin() ||
+        isOwnerOf(resource.data.schoolId) ||
+        resource.data.authorId == request.auth.uid
+      );
+    }
+
     // ── Medical Records ───────────────────────────────────────────
     match /medical_records/{childId} {
       allow read: if isSignedIn() && (

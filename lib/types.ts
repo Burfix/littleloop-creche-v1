@@ -279,3 +279,32 @@ export interface MedicalRecord {
   lastUpdatedBy?: string;          // uid of staff who last edited
 }
 
+
+// ─── Learning Journals ────────────────────────────────────────────────────────
+
+export type DevelopmentDomain =
+  | "physical"      // gross/fine motor
+  | "cognitive"     // problem solving, memory
+  | "language"      // communication, literacy
+  | "social"        // peer interaction, sharing
+  | "emotional"     // self-regulation, confidence
+  | "creative";     // art, music, imaginative play
+
+export interface JournalEntry {
+  id: string;
+  schoolId: string;
+  childId: string;
+  childName: string;           // denormalised for queries without joins
+  // Content
+  title: string;
+  observation: string;         // what the teacher observed
+  domains: DevelopmentDomain[];
+  photoUrls: string[];
+  // Visibility
+  sharedWithParent: boolean;   // false = draft/internal only
+  // Audit
+  authorId: string;            // teacher uid
+  authorName: string;
+  createdAt: string;
+  updatedAt: string;
+}

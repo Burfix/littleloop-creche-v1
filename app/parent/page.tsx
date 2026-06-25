@@ -11,13 +11,13 @@ import {
   subscribeToThread, sendMessage, updateInvoiceProof,
 } from "@/lib/db";
 import { storage } from "@/lib/firebase";
-import type { Child, DailyUpdate, Moment, Invoice, Message, MedicalRecord } from "@/lib/types";
+import type { Child, DailyUpdate, Moment, Invoice, Message, MedicalRecord, JournalEntry, DevelopmentDomain } from "@/lib/types";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { Home, Image, CreditCard, MessageCircle, LogOut, Stethoscope } from "lucide-react";
+import { Home, Image, CreditCard, MessageCircle, LogOut, Stethoscope, BookOpen } from "lucide-react";
 
-type Tab = "home" | "moments" | "billing" | "chat" | "medical";
+type Tab = "home" | "moments" | "journal" | "billing" | "chat" | "medical";
 
 const MOOD_LABELS: Record<string, string> = {
   "😊": "Happy", "😐": "Okay", "😢": "Upset", "😴": "Tired", "🤒": "Unwell",
@@ -320,6 +320,10 @@ export default function ParentDashboard() {
         )}
 
         {/* ── BILLING TAB ── */}
+        {tab === "journal" && selectedChild && (
+          <ParentJournalView childId={selectedChild.id} childName={`${selectedChild.firstName} ${selectedChild.lastName}`} />
+        )}
+
         {tab === "medical" && selectedChild && (
           <ParentMedicalView childId={selectedChild.id} firebaseUser={firebaseUser} />
         )}
@@ -443,6 +447,7 @@ export default function ParentDashboard() {
         {([
           { id: "home", Icon: Home, label: "Home" },
           { id: "moments", Icon: Image, label: "Moments" },
+          { id: "journal", Icon: BookOpen, label: "Journal" },
           { id: "billing", Icon: CreditCard, label: "Billing" },
           { id: "chat", Icon: MessageCircle, label: "Chat" },
           { id: "medical", Icon: Stethoscope, label: "Medical" },
@@ -609,6 +614,87 @@ function ParentMedicalView({ childId, firebaseUser }: { childId: string; firebas
           <p style={{ margin: 0, fontSize: 13, whiteSpace: "pre-wrap" }}>{record.notes}</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Parent Journal View ──────────────────────────────────────────────────────
+
+function ParentJournalView({ childId, childName }: { childId: string; childName: string }) {
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    import("@/lib/db").then(({ getJournalEntriesForChild }) =>
+      getJournalEntriesForChild(childId, false) // parents get shared-only
+    ).then(e => { setEntries(e); setLoading(false); });
+  }, [childId]);
+
+  const domainLabels: Record<DevelopmentDomain, string> = {
+    physical: "🏃 Physical", cognitive: "🧠 Cognitive", language: "💬 Language",
+    social: "🤝 Social", emotional: "💛 Emotional", creative: "🎨 Creative",
+  };
+
+  if (loading) return <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading…</div>;
+
+  if (entries.length === 0) return (
+    <div style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
+      <p style={{ fontSize: 40, marginBottom: 8 }}>📖</p>
+      <p style={{ fontWeight: 600, marginBottom: 4 }}>{childName}'s journal is empty</p>
+      <p style={{ fontSize: 13 }}>Teachers share learning observations here. Check back soon!</p>
+    </div>
+  );
+
+  // Group entries by month
+  const byMonth: Record<string, JournalEntry[]> = {};
+  entries.forEach(e => {
+    const key = new Date(e.createdAt).toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
+    if (!byMonth[key]) byMonth[key] = [];
+    byMonth[key].push(e);
+  });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24, paddingBottom: 32 }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{childName}'s Learning Journal</h2>
+
+      {Object.entries(byMonth).map(([month, monthEntries]) => (
+        <div key={month}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 10px" }}>{month}</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {monthEntries.map(entry => (
+              <div key={entry.id} style={{ borderRadius: 16, border: "1px solid var(--border)", overflow: "hidden", background: "var(--surface)" }}>
+                {/* Photos strip */}
+                {entry.photoUrls.length > 0 && (
+                  <div style={{ display: "flex", overflowX: "auto", gap: 2 }}>
+                    {entry.photoUrls.map((url, i) => (
+                      <img key={i} src={url} alt="" style={{ height: 180, width: entry.photoUrls.length === 1 ? "100%" : 160, objectFit: "cover", flexShrink: 0 }} />
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ padding: 14 }}>
+                  <p style={{ margin: "0 0 6px", fontWeight: 700, fontSize: 15 }}>{entry.title}</p>
+                  <p style={{ margin: "0 0 10px", fontSize: 14, lineHeight: 1.5, color: "var(--text)" }}>{entry.observation}</p>
+
+                  {entry.domains.length > 0 && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                      {entry.domains.map(d => (
+                        <span key={d} style={{ fontSize: 12, padding: "3px 10px", borderRadius: 20, background: "var(--primary-light)", color: "var(--primary)", fontWeight: 600 }}>
+                          {domainLabels[d]}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
+                    {new Date(entry.createdAt).toLocaleDateString("en-ZA", { weekday: "short", day: "numeric", month: "short" })} · {entry.authorName}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

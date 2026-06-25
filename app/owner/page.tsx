@@ -9,13 +9,13 @@ import {
   getAdmissionsForSchool, updateAdmissionStatus,
   updateInvoiceStatus,
 } from "@/lib/db";
-import type { Admission, Child, CockpitStats, Invoice, MedicalRecord } from "@/lib/types";
+import type { Admission, Child, CockpitStats, Invoice, MedicalRecord, JournalEntry, DevelopmentDomain } from "@/lib/types";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { BarChart2, Bell, ClipboardList, CreditCard, Settings, LogOut, Stethoscope } from "lucide-react";
+import { BarChart2, Bell, BookOpen, ClipboardList, CreditCard, Settings, LogOut, Stethoscope } from "lucide-react";
 
-type Tab = "overview" | "admissions" | "medical" | "billing" | "settings";
+type Tab = "overview" | "admissions" | "medical" | "journal" | "billing" | "settings";
 
 export default function OwnerDashboard() {
   const { appUser, firebaseUser, signOut } = useAuth();
@@ -298,6 +298,10 @@ export default function OwnerDashboard() {
           <MedicalPanel schoolId={school?.id ?? ""} />
         )}
 
+        {tab === "journal" && (
+          <OwnerJournalPanel schoolId={school?.id ?? ""} />
+        )}
+
         {tab === "billing" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
@@ -435,6 +439,7 @@ export default function OwnerDashboard() {
           { id: "overview", Icon: BarChart2, label: "Overview" },
           { id: "admissions", Icon: ClipboardList, label: "Admissions" },
           { id: "medical", Icon: Stethoscope, label: "Medical" },
+          { id: "journal", Icon: BookOpen, label: "Journal" },
           { id: "billing", Icon: CreditCard, label: "Billing" },
           { id: "settings", Icon: Settings, label: "Settings" },
         ] as const).map(({ id, Icon, label }) => (
@@ -1197,6 +1202,103 @@ function MedicalPanel({ schoolId }: { schoolId: string }) {
         </button>
 
       </div>
+    </div>
+  );
+}
+
+// ─── Owner Journal Panel ──────────────────────────────────────────────────────
+
+function OwnerJournalPanel({ schoolId }: { schoolId: string }) {
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<DevelopmentDomain | "all">("all");
+
+  useEffect(() => {
+    if (!schoolId) return;
+    import("@/lib/db").then(({ getJournalEntriesForSchool }) =>
+      getJournalEntriesForSchool(schoolId)
+    ).then(e => { setEntries(e); setLoading(false); });
+  }, [schoolId]);
+
+  const domainLabels: Record<DevelopmentDomain, string> = {
+    physical: "🏃 Physical", cognitive: "🧠 Cognitive", language: "💬 Language",
+    social: "🤝 Social", emotional: "💛 Emotional", creative: "🎨 Creative",
+  };
+
+  const filtered = filter === "all" ? entries : entries.filter(e => e.domains.includes(filter));
+
+  // Domain frequency count for insight chips
+  const domainCounts: Record<string, number> = {};
+  entries.forEach(e => e.domains.forEach(d => { domainCounts[d] = (domainCounts[d] ?? 0) + 1; }));
+
+  if (loading) return <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>Loading…</div>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, paddingBottom: 32 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Learning Journals</h2>
+        <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{entries.length} entries</span>
+      </div>
+
+      {/* Domain breakdown */}
+      {entries.length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <button
+            onClick={() => setFilter("all")}
+            style={{ padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: "pointer", border: filter === "all" ? "2px solid var(--primary)" : "1px solid var(--border)", background: filter === "all" ? "var(--primary-light)" : "var(--surface-2)", color: filter === "all" ? "var(--primary)" : "var(--text-muted)" }}
+          >
+            All ({entries.length})
+          </button>
+          {(Object.keys(domainCounts) as DevelopmentDomain[]).map(d => (
+            <button
+              key={d}
+              onClick={() => setFilter(d)}
+              style={{ padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: "pointer", border: filter === d ? "2px solid var(--primary)" : "1px solid var(--border)", background: filter === d ? "var(--primary-light)" : "var(--surface-2)", color: filter === d ? "var(--primary)" : "var(--text-muted)" }}
+            >
+              {domainLabels[d]} ({domainCounts[d]})
+            </button>
+          ))}
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
+        <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No journal entries yet.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {filtered.map(entry => (
+            <div key={entry.id} style={{ borderRadius: 12, border: "1px solid var(--border)", padding: 14, background: "var(--surface)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>{entry.title}</p>
+                  <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{entry.childName}</p>
+                </div>
+                <span style={{ fontSize: 11, color: entry.sharedWithParent ? "#16a34a" : "var(--text-muted)", background: entry.sharedWithParent ? "#dcfce7" : "var(--surface-2)", borderRadius: 20, padding: "2px 8px", fontWeight: 700 }}>
+                  {entry.sharedWithParent ? "Shared" : "Draft"}
+                </span>
+              </div>
+              <p style={{ margin: "6px 0 8px", fontSize: 13, color: "var(--text-muted)", lineHeight: 1.4 }}>{entry.observation}</p>
+              {entry.domains.length > 0 && (
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
+                  {entry.domains.map(d => (
+                    <span key={d} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "var(--primary-light)", color: "var(--primary)", fontWeight: 600 }}>{domainLabels[d]}</span>
+                  ))}
+                </div>
+              )}
+              {entry.photoUrls.length > 0 && (
+                <div style={{ display: "flex", gap: 4 }}>
+                  {entry.photoUrls.slice(0, 3).map((url, i) => (
+                    <img key={i} src={url} alt="" style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 6 }} />
+                  ))}
+                  {entry.photoUrls.length > 3 && <span style={{ fontSize: 12, color: "var(--text-muted)", alignSelf: "center" }}>+{entry.photoUrls.length - 3}</span>}
+                </div>
+              )}
+              <p style={{ margin: "8px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
+                {new Date(entry.createdAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })} · {entry.authorName}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

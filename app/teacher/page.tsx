@@ -12,12 +12,12 @@ import {
 } from "@/lib/db";
 import { storage } from "@/lib/firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
-import type { ClassRoom, Child, DailyUpdate, Task, MoodEmoji, MealRecord, MedicalRecord } from "@/lib/types";
+import type { ClassRoom, Child, DailyUpdate, Task, MoodEmoji, MealRecord, MedicalRecord, JournalEntry, DevelopmentDomain } from "@/lib/types";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { Users, Camera, CheckSquare, LogOut, ChevronDown, ChevronUp } from "lucide-react";
+import { Users, Camera, CheckSquare, LogOut, ChevronDown, ChevronUp, BookOpen } from "lucide-react";
 
-type Tab = "checkin" | "moments" | "tasks";
+type Tab = "checkin" | "moments" | "journal" | "tasks";
 const MOODS: MoodEmoji[] = ["😊", "😐", "😢", "😴", "🤒"];
 const MEAL_NAMES = ["Breakfast", "Lunch", "Snack"] as const;
 const EATEN_OPTIONS: MealRecord["eaten"][] = ["all", "some", "none"];
@@ -40,6 +40,18 @@ export default function TeacherDashboard() {
   const [medicalRecords, setMedicalRecords] = useState<Record<string, MedicalRecord>>({});
   const [momentChildId, setMomentChildId] = useState<string>("");
   const [savingChild, setSavingChild] = useState<string | null>(null);
+  // Journal state
+  const [journalChildId, setJournalChildId] = useState<string>("");
+  const [journalTitle, setJournalTitle] = useState("");
+  const [journalObs, setJournalObs] = useState("");
+  const [journalDomains, setJournalDomains] = useState<DevelopmentDomain[]>([]);
+  const [journalPhotos, setJournalPhotos] = useState<string[]>([]);
+  const [journalShared, setJournalShared] = useState(true);
+  const [journalSaving, setJournalSaving] = useState(false);
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [journalLoading, setJournalLoading] = useState(false);
+  const [journalUploading, setJournalUploading] = useState(false);
+  const journalPhotoRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const today = new Date().toISOString().split("T")[0];
@@ -642,6 +654,227 @@ export default function TeacherDashboard() {
           </div>
         )}
 
+        {/* ── JOURNAL TAB ── */}
+        {tab === "journal" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+            {/* Child selector */}
+            {children.length > 0 && (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", display: "block", marginBottom: 6 }}>Child</label>
+                <select
+                  value={journalChildId}
+                  onChange={e => {
+                    const id = e.target.value;
+                    setJournalChildId(id);
+                    if (!id) { setJournalEntries([]); return; }
+                    setJournalLoading(true);
+                    import("@/lib/db").then(({ getJournalEntriesForChild }) =>
+                      getJournalEntriesForChild(id, true)
+                    ).then(entries => { setJournalEntries(entries); setJournalLoading(false); });
+                  }}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid var(--border)", fontSize: 14, background: "var(--surface)", color: "var(--text)" }}
+                >
+                  <option value="">Select a child…</option>
+                  {children.map(c => (
+                    <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* New entry form */}
+            {journalChildId && (
+              <div style={{ borderRadius: 14, border: "1px solid var(--border)", padding: 16, background: "var(--surface)", display: "flex", flexDirection: "column", gap: 14 }}>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>New Entry</p>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Title</label>
+                  <input
+                    value={journalTitle}
+                    onChange={e => setJournalTitle(e.target.value)}
+                    placeholder="e.g. Built a tower with 8 blocks"
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 14, background: "var(--surface-2)", color: "var(--text)" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Observation</label>
+                  <textarea
+                    value={journalObs}
+                    onChange={e => setJournalObs(e.target.value)}
+                    rows={4}
+                    placeholder="Describe what you observed. Be specific — what did the child do or say?"
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 14, background: "var(--surface-2)", color: "var(--text)", resize: "none" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 8 }}>Development Domains</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {(["physical","cognitive","language","social","emotional","creative"] as DevelopmentDomain[]).map(d => {
+                      const labels: Record<DevelopmentDomain, string> = {
+                        physical: "🏃 Physical", cognitive: "🧠 Cognitive", language: "💬 Language",
+                        social: "🤝 Social", emotional: "💛 Emotional", creative: "🎨 Creative",
+                      };
+                      const selected = journalDomains.includes(d);
+                      return (
+                        <button
+                          key={d}
+                          onClick={() => setJournalDomains(prev => selected ? prev.filter(x => x !== d) : [...prev, d])}
+                          style={{
+                            padding: "6px 12px", borderRadius: 20, fontSize: 13, cursor: "pointer",
+                            border: selected ? "2px solid var(--primary)" : "1px solid var(--border)",
+                            background: selected ? "var(--primary-light)" : "var(--surface-2)",
+                            color: selected ? "var(--primary)" : "var(--text-muted)",
+                            fontWeight: selected ? 700 : 400,
+                          }}
+                        >
+                          {labels[d]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Photo upload */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>Photos</label>
+                  <input ref={journalPhotoRef} type="file" accept="image/*" multiple hidden onChange={async e => {
+                    const files = Array.from(e.target.files ?? []);
+                    if (!files.length) return;
+                    setJournalUploading(true);
+                    try {
+                      const { ref: storageRef, uploadBytes, getDownloadURL } = await import("firebase/storage");
+                      const { storage } = await import("@/lib/firebase");
+                      const urls = await Promise.all(files.map(async file => {
+                        const r = storageRef(storage, `journals/${journalChildId}/${Date.now()}_${file.name}`);
+                        await uploadBytes(r, file);
+                        return getDownloadURL(r);
+                      }));
+                      setJournalPhotos(prev => [...prev, ...urls]);
+                    } catch { toast.error("Upload failed"); }
+                    finally { setJournalUploading(false); if (journalPhotoRef.current) journalPhotoRef.current.value = ""; }
+                  }} />
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {journalPhotos.map((url, i) => (
+                      <div key={i} style={{ position: "relative" }}>
+                        <img src={url} alt="" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border)" }} />
+                        <button onClick={() => setJournalPhotos(p => p.filter((_, j) => j !== i))} style={{ position: "absolute", top: -6, right: -6, background: "#dc2626", color: "#fff", border: "none", borderRadius: "50%", width: 20, height: 20, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => journalPhotoRef.current?.click()}
+                      disabled={journalUploading}
+                      style={{ width: 72, height: 72, borderRadius: 8, border: "2px dashed var(--border)", background: "var(--surface-2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, color: "var(--text-muted)" }}
+                    >
+                      {journalUploading ? "…" : "+"}
+                    </button>
+                  </div>
+                </div>
+
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer" }}>
+                  <input type="checkbox" checked={journalShared} onChange={e => setJournalShared(e.target.checked)} />
+                  Share with parent
+                </label>
+
+                <button
+                  disabled={journalSaving || !journalTitle.trim() || !journalObs.trim()}
+                  onClick={async () => {
+                    if (!appUser || !selectedClass) return;
+                    const child = children.find(c => c.id === journalChildId);
+                    if (!child) return;
+                    setJournalSaving(true);
+                    try {
+                      const { createJournalEntry } = await import("@/lib/db");
+                      const id = await createJournalEntry({
+                        schoolId: selectedClass.schoolId,
+                        childId: journalChildId,
+                        childName: `${child.firstName} ${child.lastName}`,
+                        title: journalTitle.trim(),
+                        observation: journalObs.trim(),
+                        domains: journalDomains,
+                        photoUrls: journalPhotos,
+                        sharedWithParent: journalShared,
+                        authorId: appUser.uid,
+                        authorName: appUser.displayName ?? appUser.email ?? "Teacher",
+                      });
+                      toast.success("Journal entry saved");
+                      // Prepend to list
+                      setJournalEntries(prev => [{
+                        id, schoolId: selectedClass.schoolId, childId: journalChildId,
+                        childName: `${child.firstName} ${child.lastName}`,
+                        title: journalTitle.trim(), observation: journalObs.trim(),
+                        domains: journalDomains, photoUrls: journalPhotos,
+                        sharedWithParent: journalShared,
+                        authorId: appUser.uid, authorName: appUser.displayName ?? appUser.email ?? "Teacher",
+                        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+                      }, ...prev]);
+                      setJournalTitle(""); setJournalObs(""); setJournalDomains([]); setJournalPhotos([]); setJournalShared(true);
+                    } catch { toast.error("Failed to save"); }
+                    finally { setJournalSaving(false); }
+                  }}
+                  style={{ padding: "12px 0", borderRadius: 12, background: "var(--primary)", color: "#fff", border: "none", fontWeight: 700, fontSize: 15, cursor: journalSaving ? "not-allowed" : "pointer", opacity: (journalSaving || !journalTitle.trim() || !journalObs.trim()) ? 0.6 : 1 }}
+                >
+                  {journalSaving ? "Saving…" : "Save Entry"}
+                </button>
+              </div>
+            )}
+
+            {/* Entries list */}
+            {journalChildId && (
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", margin: "0 0 10px" }}>
+                  Previous Entries
+                </p>
+                {journalLoading ? (
+                  <p style={{ color: "var(--text-muted)", fontSize: 14 }}>Loading…</p>
+                ) : journalEntries.length === 0 ? (
+                  <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No entries yet.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {journalEntries.map(entry => {
+                      const domainLabels: Record<DevelopmentDomain, string> = {
+                        physical: "🏃 Physical", cognitive: "🧠 Cognitive", language: "💬 Language",
+                        social: "🤝 Social", emotional: "💛 Emotional", creative: "🎨 Creative",
+                      };
+                      return (
+                        <div key={entry.id} style={{ borderRadius: 12, border: "1px solid var(--border)", padding: 14, background: "var(--surface)" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                            <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>{entry.title}</p>
+                            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                              {entry.sharedWithParent ? "👁 Shared" : "🔒 Draft"}
+                            </span>
+                          </div>
+                          <p style={{ margin: "0 0 8px", fontSize: 13, color: "var(--text-muted)" }}>{entry.observation}</p>
+                          {entry.domains.length > 0 && (
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 8 }}>
+                              {entry.domains.map(d => (
+                                <span key={d} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "var(--primary-light)", color: "var(--primary)", fontWeight: 600 }}>{domainLabels[d]}</span>
+                              ))}
+                            </div>
+                          )}
+                          {entry.photoUrls.length > 0 && (
+                            <div style={{ display: "flex", gap: 6 }}>
+                              {entry.photoUrls.map((url, i) => (
+                                <img key={i} src={url} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6 }} />
+                              ))}
+                            </div>
+                          )}
+                          <p style={{ margin: "8px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
+                            {new Date(entry.createdAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })} · {entry.authorName}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+          </div>
+        )}
+
         {/* ── TASKS TAB ── */}
         {tab === "tasks" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -700,6 +933,7 @@ export default function TeacherDashboard() {
         {([
           { id: "checkin", Icon: Users, label: "Check-in" },
           { id: "moments", Icon: Camera, label: "Moments" },
+          { id: "journal", Icon: BookOpen, label: "Journal" },
           { id: "tasks", Icon: CheckSquare, label: "Tasks" },
         ] as const).map(({ id, Icon, label }) => (
           <button

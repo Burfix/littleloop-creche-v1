@@ -460,7 +460,7 @@ export async function getCockpitStats(schoolId: string): Promise<CockpitStats> {
 }
 
 // ─── Admissions ───────────────────────────────────────────────────────────────
-import type { Admission, AdmissionStatus, MedicalRecord } from "./types";
+import type { Admission, AdmissionStatus, MedicalRecord, JournalEntry, DevelopmentDomain } from "./types";
 
 function toAdmission(snap: QueryDocumentSnapshot<DocumentData>): Admission {
   const d = snap.data();
@@ -538,4 +538,65 @@ export async function upsertMedicalRecord(
     },
     { merge: true }
   );
+}
+
+// ─── Learning Journals ────────────────────────────────────────────────────────
+
+export async function createJournalEntry(
+  entry: Omit<JournalEntry, "id" | "createdAt" | "updatedAt">
+): Promise<string> {
+  const ref = await addDoc(collection(db, "journal_entries"), {
+    ...entry,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function updateJournalEntry(
+  entryId: string,
+  data: Partial<Pick<JournalEntry, "title" | "observation" | "domains" | "photoUrls" | "sharedWithParent">>
+): Promise<void> {
+  await setDoc(
+    doc(db, "journal_entries", entryId),
+    { ...data, updatedAt: serverTimestamp() },
+    { merge: true }
+  );
+}
+
+export async function deleteJournalEntry(entryId: string): Promise<void> {
+  const { deleteDoc } = await import("firebase/firestore");
+  await deleteDoc(doc(db, "journal_entries", entryId));
+}
+
+export async function getJournalEntriesForChild(
+  childId: string,
+  includePrivate = false
+): Promise<JournalEntry[]> {
+  const q = includePrivate
+    ? query(
+        collection(db, "journal_entries"),
+        where("childId", "==", childId),
+        orderBy("createdAt", "desc")
+      )
+    : query(
+        collection(db, "journal_entries"),
+        where("childId", "==", childId),
+        where("sharedWithParent", "==", true),
+        orderBy("createdAt", "desc")
+      );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as JournalEntry));
+}
+
+export async function getJournalEntriesForSchool(
+  schoolId: string
+): Promise<JournalEntry[]> {
+  const q = query(
+    collection(db, "journal_entries"),
+    where("schoolId", "==", schoolId),
+    orderBy("createdAt", "desc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as JournalEntry));
 }
