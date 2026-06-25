@@ -15,7 +15,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage
 import type { ClassRoom, Child, DailyUpdate, Task, MoodEmoji, MealRecord, MedicalRecord, JournalEntry, DevelopmentDomain } from "@/lib/types";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { Users, Camera, CheckSquare, LogOut, ChevronDown, ChevronUp, BookOpen } from "lucide-react";
+import { Users, Camera, Calendar, CheckSquare, LogOut, ChevronDown, ChevronUp, BookOpen } from "lucide-react";
 
 type Tab = "checkin" | "moments" | "journal" | "tasks" | "leave";
 const MOODS: MoodEmoji[] = ["😊", "😐", "😢", "😴", "🤒"];
