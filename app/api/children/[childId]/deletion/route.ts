@@ -97,10 +97,9 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     const authorized = await getAuthorizedRequest(req, childId);
     if ("error" in authorized) return authorized.error;
 
-    const now = new Date().toISOString();
     await authorized.childRef.update({
       deletionStatus: "pending_erasure",
-      deletionRequestedAt: now,
+      deletionRequestedAt: FieldValue.serverTimestamp(),
       deletionRequestedBy: authorized.uid,
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -110,7 +109,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       actorId: authorized.uid,
       childId,
       schoolId: authorized.child?.schoolId,
-      createdAt: now,
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     return NextResponse.json({ success: true, deletionStatus: "pending_erasure" });
@@ -158,7 +157,7 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
       childId,
       schoolId,
       deletedCounts,
-      createdAt: new Date().toISOString(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     return NextResponse.json({ success: true, deletedCounts });

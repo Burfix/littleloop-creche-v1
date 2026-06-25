@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
-  try {
-    const rateLimited = await enforceRateLimit(req, {
-      namespace: "schools",
-      limit: 3,
-      windowSeconds: 60 * 60,
-    });
-    if (rateLimited) return rateLimited;
+  const rateLimitResponse = await enforceRateLimit(req, {
+    namespace: "schools",
+    limit: 5,
+    windowSeconds: 60,
+  });
+  if (rateLimitResponse) return rateLimitResponse;
 
+  try {
     const { name, slug, ownerName, ownerEmail, phone, address, branches } = await req.json();
 
     if (!name || !slug || !ownerEmail || !ownerName) {
@@ -24,7 +25,10 @@ export async function POST(req: NextRequest) {
     const existing = await db.collection("schools")
       .where("slug", "==", slug.toLowerCase()).limit(1).get();
     if (!existing.empty) {
-      return NextResponse.json({ error: "Slug already taken — choose a different URL name" }, { status: 409 });
+      return NextResponse.json(
+        { error: "Slug already taken — choose a different URL name" },
+        { status: 409 }
+      );
     }
 
     // 2. Create school document
@@ -38,7 +42,7 @@ export async function POST(req: NextRequest) {
       address: address ?? "",
       branches: branches ?? [],
       plan: "starter",
-      createdAt: new Date().toISOString(),
+      createdAt: FieldValue.serverTimestamp(),
     });
 
     // 3. Create or get owner Firebase Auth user
@@ -64,10 +68,10 @@ export async function POST(req: NextRequest) {
       displayName: ownerName,
       role: "owner",
       schoolId,
-      createdAt: new Date().toISOString(),
+      createdAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    // 5. Send password setup email directly
+    // 5. Send password setup email
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://littleloop-creche-v1.vercel.app";
     const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
