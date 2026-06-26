@@ -317,25 +317,27 @@ export default function ParentDashboard() {
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {moments.map(m => (
-                  <div key={m.id} style={{ borderRadius: 10, overflow: "hidden", position: "relative", aspectRatio: "1" }}>
-                    <NextImage
-                      src={m.mediaUrl}
-                      alt={m.caption ?? ""}
-                      fill
-                      unoptimized
-                      sizes="50vw"
-                      style={{ objectFit: "cover" }}
-                    />
-                    {m.caption && (
-                      <div style={{
-                        position: "absolute", bottom: 0, left: 0, right: 0,
-                        background: "linear-gradient(transparent, rgba(0,0,0,0.6))",
-                        padding: "16px 8px 8px", color: "white", fontSize: 11,
-                      }}>
-                        {m.caption}
-                      </div>
-                    )}
-                    <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
+                  <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ borderRadius: 10, overflow: "hidden", position: "relative", aspectRatio: "1" }}>
+                      <NextImage
+                        src={m.mediaUrl}
+                        alt={m.caption ?? ""}
+                        fill
+                        unoptimized
+                        sizes="50vw"
+                        style={{ objectFit: "cover" }}
+                      />
+                      {m.caption && (
+                        <div style={{
+                          position: "absolute", bottom: 0, left: 0, right: 0,
+                          background: "linear-gradient(transparent, rgba(0,0,0,0.6))",
+                          padding: "16px 8px 8px", color: "white", fontSize: 11,
+                        }}>
+                          {m.caption}
+                        </div>
+                      )}
+                    </div>
+                    <p style={{ margin: 0, fontSize: 11, color: "var(--text-muted)" }}>
                       {format(new Date(m.createdAt), "d MMM")}
                     </p>
                   </div>

@@ -179,6 +179,39 @@ export default function TeacherDashboard() {
     setTasks(prev => prev.map(t => t.id === task.id ? { ...t, done: !t.done } : t));
   };
 
+  const handleCheckOut = async (child: Child) => {
+    if (!appUser || !school || !selectedClass) return;
+    const existing = getUpdateForChild(child.id);
+    if (!existing?.checkedIn) { toast.error("Child is not checked in"); return; }
+    const checkOutTime = new Date().toISOString();
+    await upsertDailyUpdate({ ...existing, checkOutTime });
+    setUpdates(prev => prev.map(u => u.childId === child.id ? { ...u, checkOutTime } : u));
+    toast.success(`${child.firstName} checked out ✓`);
+  };
+
+  const handleMealUpdate = async (child: Child, mealIndex: number, eaten: "all" | "some" | "none") => {
+    if (!appUser || !school || !selectedClass) return;
+    const existing = getUpdateForChild(child.id);
+    if (!existing) { toast.error("Check in first"); return; }
+    const meals = existing.meals.map((m, i) => i === mealIndex ? { ...m, eaten } : m);
+    await upsertDailyUpdate({ ...existing, meals });
+    setUpdates(prev => prev.map(u => u.childId === child.id ? { ...u, meals } : u));
+  };
+
+  const handleNapUpdate = async (child: Child, napMinutes: number | undefined) => {
+    if (!appUser || !school || !selectedClass) return;
+    const existing = getUpdateForChild(child.id);
+    if (!existing) return;
+    await upsertDailyUpdate({ ...existing, napMinutes });
+  };
+
+  const handleNotesUpdate = async (child: Child, notes: string | undefined) => {
+    if (!appUser || !school || !selectedClass) return;
+    const existing = getUpdateForChild(child.id);
+    if (!existing) return;
+    await upsertDailyUpdate({ ...existing, notes });
+  };
+
   const checkedIn = updates.filter(u => u.checkedIn).length;
   const selectedMomentChild = children.find(child => child.id === selectedMomentChildId);
   const canUploadMoment = Boolean(selectedMomentChild?.photoConsent) && !uploading;
@@ -205,11 +238,10 @@ export default function TeacherDashboard() {
           {classes.length > 1 && (
             <select
               value={selectedClass?.id ?? ""}
-              onChange={e => setClasses(prev => {
-                const c = prev.find(cl => cl.id === e.target.value);
+              onChange={e => {
+                const c = classes.find(cl => cl.id === e.target.value);
                 if (c) setSelectedClass(c);
-                return prev;
-              })}
+              }}
               style={{ fontSize: 13, border: "1px solid var(--border)", borderRadius: 8, padding: "4px 8px" }}
             >
               {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -254,7 +286,8 @@ export default function TeacherDashboard() {
               const upd = getUpdateForChild(child.id);
               return (
                 <div key={child.id} className="card">
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: upd?.checkedIn ? 12 : 0 }}>
+                  {/* Header row */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div className="avatar" style={{ background: "var(--brand-light)", color: "var(--brand)", fontSize: 16 }}>
                       {child.firstName[0]}
                     </div>
@@ -264,40 +297,123 @@ export default function TeacherDashboard() {
                       </p>
                       {upd?.checkInTime && (
                         <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
-                          In at {format(new Date(upd.checkInTime), "HH:mm")}
+                          In {format(new Date(upd.checkInTime), "HH:mm")}
+                          {upd.checkOutTime && ` · Out ${format(new Date(upd.checkOutTime), "HH:mm")}`}
                         </p>
                       )}
                     </div>
-                    <button
-                      className={`btn ${upd?.checkedIn ? "btn-secondary" : "btn-primary"}`}
-                      style={{ padding: "8px 16px", fontSize: 13 }}
-                      onClick={() => !upd?.checkedIn && handleCheckIn(child)}
-                    >
-                      {upd?.checkedIn ? "✓ In" : "Check in"}
-                    </button>
+                    {upd?.checkedIn && !upd?.checkOutTime ? (
+                      <button
+                        className="btn btn-secondary"
+                        style={{ padding: "8px 14px", fontSize: 13 }}
+                        onClick={() => handleCheckOut(child)}
+                      >
+                        Check out
+                      </button>
+                    ) : upd?.checkOutTime ? (
+                      <span className="pill pill-gray" style={{ fontSize: 12 }}>Gone home</span>
+                    ) : (
+                      <button
+                        className="btn btn-primary"
+                        style={{ padding: "8px 14px", fontSize: 13 }}
+                        onClick={() => handleCheckIn(child)}
+                      >
+                        Check in
+                      </button>
+                    )}
                   </div>
 
                   {upd?.checkedIn && (
-                    <div>
-                      <p style={{ margin: "0 0 8px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>
-                        Mood
-                      </p>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        {MOODS.map(m => (
-                          <button
-                            key={m}
-                            onClick={() => handleMood(child, m)}
-                            style={{
-                              fontSize: 22, background: "none", border: "none", cursor: "pointer",
-                              opacity: upd.mood === m ? 1 : 0.35,
-                              transform: upd.mood === m ? "scale(1.2)" : "none",
-                              transition: "all 0.15s",
-                            }}
-                          >
-                            {m}
-                          </button>
+                    <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+
+                      {/* Mood */}
+                      <div>
+                        <p style={{ margin: "0 0 6px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>Mood</p>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          {MOODS.map(m => (
+                            <button
+                              key={m}
+                              onClick={() => handleMood(child, m)}
+                              style={{
+                                fontSize: 22, background: "none", border: "none", cursor: "pointer",
+                                opacity: upd.mood === m ? 1 : 0.35,
+                                transform: upd.mood === m ? "scale(1.2)" : "none",
+                                transition: "all 0.15s",
+                              }}
+                            >
+                              {m}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Meals */}
+                      <div>
+                        <p style={{ margin: "0 0 6px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>Meals</p>
+                        {upd.meals.map((meal, mi) => (
+                          <div key={mi} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                            <span style={{ fontSize: 13 }}>{meal.name}</span>
+                            <div style={{ display: "flex", gap: 4 }}>
+                              {(["all", "some", "none"] as const).map(opt => (
+                                <button
+                                  key={opt}
+                                  onClick={() => handleMealUpdate(child, mi, opt)}
+                                  style={{
+                                    fontSize: 12, padding: "4px 9px", borderRadius: 6, cursor: "pointer",
+                                    border: `1px solid ${meal.eaten === opt
+                                      ? opt === "all" ? "var(--success)" : opt === "some" ? "var(--warning)" : "var(--error)"
+                                      : "var(--border)"}`,
+                                    background: meal.eaten === opt
+                                      ? opt === "all" ? "var(--success)" : opt === "some" ? "var(--warning)" : "var(--error)"
+                                      : "transparent",
+                                    color: meal.eaten === opt ? "white" : "var(--text-muted)",
+                                    fontWeight: meal.eaten === opt ? 600 : 400,
+                                    transition: "all 0.12s",
+                                  }}
+                                >
+                                  {opt === "all" ? "All" : opt === "some" ? "Some" : "None"}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         ))}
                       </div>
+
+                      {/* Nap */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>Nap (mins)</p>
+                        <input
+                          type="number"
+                          min={0}
+                          max={480}
+                          className="input"
+                          style={{ width: 80, fontSize: 13, padding: "5px 8px", textAlign: "center" }}
+                          value={upd.napMinutes ?? ""}
+                          placeholder="0"
+                          onChange={e => {
+                            const val = e.target.value === "" ? undefined : Number(e.target.value);
+                            setUpdates(prev => prev.map(u => u.childId === child.id ? { ...u, napMinutes: val } : u));
+                          }}
+                          onBlur={e => handleNapUpdate(child, e.target.value === "" ? undefined : Number(e.target.value))}
+                        />
+                      </div>
+
+                      {/* Notes */}
+                      <div>
+                        <p style={{ margin: "0 0 4px", fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>Notes for parent</p>
+                        <textarea
+                          className="input"
+                          style={{ width: "100%", minHeight: 56, fontSize: 13, resize: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+                          value={upd.notes ?? ""}
+                          placeholder="How was their day? Any observations…"
+                          onChange={e => {
+                            const notes = e.target.value || undefined;
+                            setUpdates(prev => prev.map(u => u.childId === child.id ? { ...u, notes } : u));
+                          }}
+                          onBlur={e => handleNotesUpdate(child, e.target.value || undefined)}
+                        />
+                      </div>
+
                     </div>
                   )}
                 </div>

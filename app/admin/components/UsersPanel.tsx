@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { signInWithCustomToken } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 import { getAllUsers } from "@/lib/db";
 import type { AppUser, School } from "@/lib/types";
 import type { User } from "firebase/auth";
@@ -101,6 +103,34 @@ export function UsersPanel({ schools, firebaseUser, targetEmail, targetDisplayNa
     }
   };
 
+  const handleImpersonate = async (user: AppUser) => {
+    const label = user.displayName ?? user.email ?? user.uid;
+    if (!window.confirm(`You will be signed in as ${label}. Sign back in as superadmin when done. Continue?`)) return;
+
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch("/api/admin/impersonate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ targetUid: user.uid }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      await signInWithCustomToken(auth, data.customToken);
+
+      const routes: Record<string, string> = {
+        parent: "/parent",
+        teacher: "/teacher",
+        owner: "/owner",
+        superadmin: "/admin",
+      };
+      window.location.href = routes[user.role] ?? "/login";
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not impersonate user");
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -165,6 +195,12 @@ export function UsersPanel({ schools, firebaseUser, targetEmail, targetDisplayNa
                     onClick={() => startEditing(user)}>
                     Edit name
                   </button>
+                  {user.role !== "superadmin" && user.uid !== firebaseUser.uid && (
+                    <button className="btn btn-secondary" style={{ flex: 1, fontSize: 13 }}
+                      onClick={() => handleImpersonate(user)}>
+                      View as
+                    </button>
+                  )}
                   <button className="btn btn-danger" style={{ flex: 1, fontSize: 13 }}
                     disabled={deletingUid === user.uid || user.uid === firebaseUser.uid}
                     onClick={() => deleteUser(user)}>
