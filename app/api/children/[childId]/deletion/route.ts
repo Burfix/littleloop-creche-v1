@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { enforceRateLimit } from "@/lib/rate-limit";
+
+// Tight limits: erasure is a destructive, irreversible operation.
+// PATCH (soft-delete): 10 requests per hour per IP.
+// DELETE (hard erase): 5 requests per hour per IP.
+const SOFT_DELETE_RATE_LIMIT = { namespace: "child-erasure-request", limit: 10, windowSeconds: 3600 };
+const HARD_DELETE_RATE_LIMIT = { namespace: "child-erasure-confirm", limit: 5, windowSeconds: 3600 };
 
 type RouteContext = {
   params: Promise<{ childId: string }>;
@@ -92,6 +99,9 @@ async function deleteMessagesForChild(
 }
 
 export async function PATCH(req: NextRequest, context: RouteContext) {
+  const rateLimited = await enforceRateLimit(req, SOFT_DELETE_RATE_LIMIT);
+  if (rateLimited) return rateLimited;
+
   try {
     const { childId } = await context.params;
     const authorized = await getAuthorizedRequest(req, childId);
@@ -124,6 +134,9 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 }
 
 export async function DELETE(req: NextRequest, context: RouteContext) {
+  const rateLimited = await enforceRateLimit(req, HARD_DELETE_RATE_LIMIT);
+  if (rateLimited) return rateLimited;
+
   try {
     const { childId } = await context.params;
     const { confirmName } = await req.json();

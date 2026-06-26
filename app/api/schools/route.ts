@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { requireSuperAdmin } from "@/lib/api-auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
@@ -11,14 +11,16 @@ export async function POST(req: NextRequest) {
     });
     if (rateLimited) return rateLimited;
 
+    const authorized = await requireSuperAdmin(req);
+    if ("error" in authorized) return authorized.error;
+
     const { name, slug, ownerName, ownerEmail, phone, address, branches } = await req.json();
 
     if (!name || !slug || !ownerEmail || !ownerName) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const db = adminDb();
-    const auth = adminAuth();
+    const { db, auth } = authorized;
 
     // 1. Check slug is unique
     const existing = await db.collection("schools")

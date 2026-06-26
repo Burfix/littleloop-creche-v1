@@ -12,7 +12,12 @@ service firebase.storage {
 
     // School moment photos
     match /schools/{schoolId}/moments/{fileName} {
-      allow read: if request.auth != null;
+      // Only users who belong to this school can read moment photos.
+      // Superadmins are cross-school and bypass the schoolId check.
+      allow read: if request.auth != null && (
+        userData().schoolId == schoolId ||
+        userData().role == 'superadmin'
+      );
       allow write: if request.auth != null &&
         userData().schoolId == schoolId &&
         userData().role in ['teacher', 'owner', 'superadmin'] &&

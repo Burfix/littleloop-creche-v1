@@ -117,6 +117,11 @@ export async function updateUser(uid: string, data: Partial<AppUser>): Promise<v
   await updateDoc(doc(db, "users", uid), data);
 }
 
+export async function getAllUsers(): Promise<AppUser[]> {
+  const snap = await getDocs(collection(db, "users"));
+  return snap.docs.map(d => ({ ...d.data(), uid: d.id, createdAt: toDate(d.data().createdAt) } as AppUser));
+}
+
 // ─── Schools ─────────────────────────────────────────────────────────────────
 export async function getSchool(schoolId: string): Promise<School | null> {
   const snap = await getDoc(doc(db, "schools", schoolId));
@@ -168,8 +173,21 @@ export async function getChildrenForParent(parentId: string): Promise<Child[]> {
 }
 
 export async function getChildrenForSchool(schoolId: string): Promise<Child[]> {
-  const page = await getChildrenForSchoolPage(schoolId);
-  return page.items;
+  const children: Child[] = [];
+  let cursor: QueryDocumentSnapshot<DocumentData> | null = null;
+  let hasMore = true;
+
+  while (hasMore) {
+    const page = await getChildrenForSchoolPage(schoolId, {
+      pageSize: MAX_PAGE_SIZE,
+      cursor,
+    });
+    children.push(...page.items);
+    cursor = page.nextCursor;
+    hasMore = page.hasMore && Boolean(cursor);
+  }
+
+  return children;
 }
 
 export async function getChildrenForSchoolPage(
@@ -177,17 +195,54 @@ export async function getChildrenForSchoolPage(
   options: PaginationOptions = {}
 ): Promise<PaginatedResult<Child>> {
   const pageSize = normalizePageSize(options.pageSize);
-  const q = query(
-    collection(db, "children"),
-    ...withCursor([
-      where("schoolId", "==", schoolId),
-      orderBy("enrolledAt", "desc"),
-      limit(pageSize + 1),
-    ], options.cursor)
-  );
-  const snap = await getDocs(q);
-  const page = pageFromSnapshot(snap.docs, pageSize, toChild);
-  return options.includePendingErasure ? page : { ...page, items: page.items.filter(isActiveChild) };
+  const constraints = [
+    where("schoolId", "==", schoolId),
+    orderBy("enrolledAt", "desc"),
+  ];
+
+  if (options.includePendingErasure) {
+    const q = query(
+      collection(db, "children"),
+      ...withCursor([...constraints, limit(pageSize + 1)], options.cursor)
+    );
+    const snap = await getDocs(q);
+    return pageFromSnapshot(snap.docs, pageSize, toChild);
+  }
+
+  let cursor = options.cursor ?? null;
+  let nextCursor: QueryDocumentSnapshot<DocumentData> | null = null;
+  let hasMore = false;
+  const items: Child[] = [];
+
+  while (items.length < pageSize) {
+    const q = query(
+      collection(db, "children"),
+      ...withCursor([...constraints, limit(pageSize + 1)], cursor)
+    );
+    const snap = await getDocs(q);
+    const docs = snap.docs;
+    const pageDocs = docs.slice(0, pageSize);
+    let scannedAllPageDocs = true;
+
+    for (const docSnap of pageDocs) {
+      nextCursor = docSnap;
+      const child = toChild(docSnap);
+      if (isActiveChild(child)) {
+        items.push(child);
+        if (items.length === pageSize) {
+          scannedAllPageDocs = docSnap === pageDocs.at(-1);
+          break;
+        }
+      }
+    }
+
+    hasMore = docs.length > pageSize || !scannedAllPageDocs;
+    cursor = nextCursor;
+
+    if (!hasMore || pageDocs.length === 0) break;
+  }
+
+  return { items, nextCursor, hasMore };
 }
 
 export async function addChild(data: Omit<Child, "id" | "enrolledAt">): Promise<string> {
@@ -203,6 +258,12 @@ export async function getClassesForSchool(schoolId: string): Promise<ClassRoom[]
   const q = query(collection(db, "classes"), where("schoolId", "==", schoolId));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ ...d.data(), id: d.id } as ClassRoom));
+}
+
+export async function getClassRoom(classId: string): Promise<ClassRoom | null> {
+  const snap = await getDoc(doc(db, "classes", classId));
+  if (!snap.exists()) return null;
+  return { ...snap.data(), id: snap.id } as ClassRoom;
 }
 
 export async function getClassesForTeacher(teacherId: string): Promise<ClassRoom[]> {
@@ -398,16 +459,11 @@ export async function getCockpitStats(schoolId: string): Promise<CockpitStats> {
   const currentMonth = today.slice(0, 7);
 
   const [
-    childrenCountSnap,
     checkedInCountSnap,
     staffCountSnap,
-    photoConsentCountSnap,
     monthInvoicesSnap,
+    childPage,
   ] = await Promise.all([
-    getCountFromServer(query(
-      collection(db, "children"),
-      where("schoolId", "==", schoolId)
-    )),
     getCountFromServer(query(
       collection(db, "daily_updates"),
       where("schoolId", "==", schoolId),
@@ -419,16 +475,12 @@ export async function getCockpitStats(schoolId: string): Promise<CockpitStats> {
       where("schoolId", "==", schoolId),
       where("role", "==", "teacher")
     )),
-    getCountFromServer(query(
-      collection(db, "children"),
-      where("schoolId", "==", schoolId),
-      where("photoConsent", "==", false)
-    )),
     getDocs(query(
       collection(db, "invoices"),
       where("schoolId", "==", schoolId),
       where("month", "==", currentMonth)
     )),
+    getChildrenForSchool(schoolId),
   ]);
 
   const classes = await getClassesForSchool(schoolId);
@@ -448,13 +500,13 @@ export async function getCockpitStats(schoolId: string): Promise<CockpitStats> {
   ).size;
 
   return {
-    totalChildren: childrenCountSnap.data().count,
+    totalChildren: childPage.length,
     checkedInToday: checkedInCountSnap.data().count,
     totalCapacity,
     collectedMTD,
     outstandingMTD,
     outstandingFamilies,
     staffCount: staffCountSnap.data().count,
-    photoConsentPending: photoConsentCountSnap.data().count,
+    photoConsentPending: childPage.filter(child => !child.photoConsent).length,
   };
 }

@@ -29,6 +29,7 @@ export default function TeacherDashboard() {
   const [classes, setClasses] = useState<ClassRoom[]>([]);
   const [selectedClass, setSelectedClass] = useState<ClassRoom | null>(null);
   const [children, setChildren] = useState<Child[]>([]);
+  const [selectedMomentChildId, setSelectedMomentChildId] = useState("");
   const [updates, setUpdates] = useState<DailyUpdate[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTask, setNewTask] = useState("");
@@ -48,7 +49,10 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     if (!selectedClass || !school) return;
-    getChildrenForClass(school.id, selectedClass.id).then(setChildren);
+    getChildrenForClass(school.id, selectedClass.id).then(c => {
+      setChildren(c);
+      setSelectedMomentChildId(prev => c.some(child => child.id === prev) ? prev : c[0]?.id ?? "");
+    });
     getDailyUpdatesForClass(school.id, selectedClass.id, today).then(setUpdates);
     getTasksForClass(school.id, selectedClass.id).then(setTasks);
   }, [selectedClass, school, today]);
@@ -112,18 +116,30 @@ export default function TeacherDashboard() {
   };
 
   const handlePhotoUpload = async (files: FileList | null) => {
-    if (!files || !school || !selectedClass || !appUser || children.length === 0) return;
+    if (!files || !school || !selectedClass || !appUser) return;
+    const selectedChild = children.find(child => child.id === selectedMomentChildId);
+
+    if (!selectedChild) {
+      toast.error("Choose a child before uploading");
+      return;
+    }
+
+    if (!selectedChild.photoConsent) {
+      toast.error(`${selectedChild.firstName} does not have photo consent`);
+      return;
+    }
+
     setUploading(true);
     try {
-      for (const file of Array.from(files)) {
-        const path = `schools/${school.id}/moments/${Date.now()}_${file.name}`;
+      for (const [index, file] of Array.from(files).entries()) {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `schools/${school.id}/moments/${selectedChild.id}/${Date.now()}_${index}_${safeName}`;
         const sRef = storageRef(storage, path);
         const snap = await uploadBytes(sRef, file);
         const url = await getDownloadURL(snap.ref);
-        // Upload to first child in class as demo; real app would let teacher select
         await addMoment({
           schoolId: school.id,
-          childId: children[0].id,
+          childId: selectedChild.id,
           classId: selectedClass.id,
           teacherId: appUser.uid,
           date: today,
@@ -132,7 +148,7 @@ export default function TeacherDashboard() {
           visibleToParents: true,
         });
       }
-      toast.success(`${files.length} photo${files.length > 1 ? "s" : ""} uploaded`);
+      toast.success(`${files.length} photo${files.length > 1 ? "s" : ""} uploaded for ${selectedChild.firstName}`);
     } catch {
       toast.error("Upload failed");
     } finally {
@@ -164,6 +180,8 @@ export default function TeacherDashboard() {
   };
 
   const checkedIn = updates.filter(u => u.checkedIn).length;
+  const selectedMomentChild = children.find(child => child.id === selectedMomentChildId);
+  const canUploadMoment = Boolean(selectedMomentChild?.photoConsent) && !uploading;
 
   if (!appUser) return <div className="page-loader"><div className="spinner" /></div>;
 
@@ -291,20 +309,57 @@ export default function TeacherDashboard() {
         {/* ── MOMENTS TAB ── */}
         {tab === "moments" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div className="card" style={{ textAlign: "center", borderStyle: "dashed", cursor: "pointer" }}
-              onClick={() => fileRef.current?.click()}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
+                Child
+              </label>
+              <select
+                className="input"
+                value={selectedMomentChildId}
+                onChange={e => setSelectedMomentChildId(e.target.value)}
+                disabled={children.length === 0 || uploading}
+              >
+                {children.length === 0 ? (
+                  <option value="">No children assigned</option>
+                ) : children.map(child => (
+                  <option key={child.id} value={child.id}>
+                    {child.firstName} {child.lastName}{child.photoConsent ? "" : " - no photo consent"}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedMomentChild && !selectedMomentChild.photoConsent && (
+              <div className="card" style={{ borderLeft: "3px solid var(--warning)", background: "#fffbeb" }}>
+                <p style={{ margin: 0, fontSize: 13, color: "#92400e" }}>
+                  Photo sharing is disabled for {selectedMomentChild.firstName} until consent is recorded.
+                </p>
+              </div>
+            )}
+
+            <div
+              className="card"
+              style={{
+                textAlign: "center",
+                borderStyle: "dashed",
+                cursor: canUploadMoment ? "pointer" : "not-allowed",
+                opacity: canUploadMoment ? 1 : 0.6,
+              }}
+              onClick={() => canUploadMoment && fileRef.current?.click()}
+            >
               <div style={{ fontSize: 36, marginBottom: 8 }}>📸</div>
               <p style={{ margin: 0, fontWeight: 600, fontSize: 15 }}>
                 {uploading ? "Uploading…" : "Share a moment"}
               </p>
               <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
-                Tap to add photos from today
+                {selectedMomentChild ? `Tap to add photos for ${selectedMomentChild.firstName}` : "Choose a child first"}
               </p>
               <input
                 ref={fileRef}
                 type="file"
                 accept="image/*"
                 multiple
+                disabled={!canUploadMoment}
                 style={{ display: "none" }}
                 onChange={e => handlePhotoUpload(e.target.files)}
               />

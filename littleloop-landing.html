@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LittleLoop — Your child's day, in your pocket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,600;0,700;1,300;1,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --navy:   #1A2E3B;
+    --green:  #4F9B7A;
+    --green2: #3A7A5E;
+    --cream:  #FFF8F0;
+    --mint:   #F0F7F4;
+    --yellow: #FFD166;
+    --muted:  #6B8A99;
+    --border: #DDE8E3;
+    --r:      16px;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--cream);
+    color: var(--navy);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 48px;
+    background: rgba(255,248,240,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Fraunces', serif; font-weight: 600; font-size: 22px;
+    color: var(--navy); text-decoration: none;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--green);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  .nav-links { display: flex; align-items: center; gap: 32px; }
+  .nav-links a { text-decoration: none; color: var(--muted); font-size: 14px; font-weight: 500; transition: color .2s; }
+  .nav-links a:hover { color: var(--navy); }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 24px; border-radius: 999px;
+    font-size: 14px; font-weight: 600;
+    text-decoration: none; border: none; cursor: pointer;
+    transition: transform .15s, opacity .15s;
+  }
+  .btn:hover { opacity: .88; transform: translateY(-1px); }
+  .btn-primary { background: var(--green); color: white; }
+  .btn-outline { background: transparent; color: var(--navy); border: 1.5px solid var(--border); }
+
+  /* ── HERO ── */
+  .hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    min-height: 90vh;
+    align-items: center;
+    padding: 80px 48px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .hero-text { padding-right: 48px; }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 999px;
+    background: var(--mint); border: 1px solid var(--border);
+    font-size: 12px; font-weight: 600; color: var(--green2);
+    letter-spacing: .5px; text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+
+  .eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(38px, 4.5vw, 58px);
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -1px;
+    margin-bottom: 24px;
+    color: var(--navy);
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--green);
+  }
+
+  .hero-sub {
+    font-size: 17px;
+    line-height: 1.65;
+    color: var(--muted);
+    margin-bottom: 40px;
+    max-width: 440px;
+  }
+
+  .hero-actions {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+
+  .hero-trust {
+    margin-top: 48px;
+    display: flex; align-items: center; gap: 16px;
+  }
+
+  .avatar-stack { display: flex; }
+  .avatar-stack img, .avatar-stack .av {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 2px solid var(--cream);
+    margin-left: -10px; object-fit: cover;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 600;
+  }
+  .avatar-stack .av { background: var(--green); color: white; }
+  .avatar-stack:first-child { margin-left: 0; }
+
+  .trust-text { font-size: 13px; color: var(--muted); line-height: 1.4; }
+  .trust-text strong { color: var(--navy); }
+
+  /* ── PHONE MOCKUP ── */
+  .hero-visual {
+    display: flex; justify-content: center; align-items: center;
+    position: relative;
+  }
+
+  .phone-wrap {
+    position: relative;
+    animation: float 4s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-12px); }
+  }
+
+  .phone {
+    width: 300px;
+    background: var(--navy);
+    border-radius: 44px;
+    padding: 12px;
+    box-shadow: 0 40px 80px rgba(26,46,59,0.25), 0 0 0 1px rgba(26,46,59,0.1);
+  }
+
+  .phone-inner {
+    background: #f8fafc;
+    border-radius: 34px;
+    overflow: hidden;
+    height: 580px;
+  }
+
+  /* Phone UI */
+  .phone-status {
+    background: var(--green);
+    padding: 14px 20px 10px;
+    color: white;
+  }
+
+  .phone-status-top {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; margin-bottom: 14px; opacity: .8;
+  }
+
+  .phone-header { display: flex; align-items: center; justify-content: space-between; }
+  .phone-header-left p { font-size: 11px; opacity: .75; margin-bottom: 2px; }
+  .phone-header-left h3 { font-size: 17px; font-weight: 700; }
+
+  .phone-avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+
+  .phone-card-row {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 0; padding: 14px 0 0; text-align: center;
+  }
+
+  .phone-card-row div { display: flex; flex-direction: column; gap: 2px; }
+  .phone-card-row .val { font-size: 20px; font-weight: 700; }
+  .phone-card-row .lbl { font-size: 10px; opacity: .7; }
+
+  .phone-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+
+  .phone-section-title { font-size: 12px; font-weight: 700; color: var(--navy); margin-bottom: 2px; }
+
+  .phone-update-card {
+    background: white; border-radius: 12px; padding: 12px;
+    border: 1px solid var(--border);
+  }
+
+  .phone-meal-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; margin-bottom: 6px;
+  }
+
+  .pill-sm {
+    padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600;
+  }
+  .pill-green { background: #dcfce7; color: #166534; }
+  .pill-amber { background: #fef9c3; color: #854d0e; }
+
+  .phone-note {
+    background: #f0f7f4; border-radius: 10px; padding: 10px;
+    font-size: 10px; color: #3a7a5e; line-height: 1.5;
+    border-left: 3px solid var(--green);
+  }
+
+  .phone-activity-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .activity-tag {
+    background: var(--mint); color: var(--green2);
+    padding: 3px 9px; border-radius: 999px; font-size: 10px; font-weight: 600;
+  }
+
+  .phone-nav {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: white; border-top: 1px solid var(--border);
+    display: flex; padding: 10px 0 14px;
+  }
+
+  .phone-nav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    font-size: 9px; color: var(--muted);
+  }
+
+  .phone-nav-item.active { color: var(--green); }
+  .phone-nav-item .icon { font-size: 16px; }
+
+  /* Floating badge */
+  .float-badge {
+    position: absolute;
+    background: white; border-radius: 14px; padding: 10px 14px;
+    box-shadow: 0 8px 24px rgba(26,46,59,0.12);
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; font-weight: 600; color: var(--navy);
+    white-space: nowrap;
+  }
+
+  .float-badge .icon { font-size: 20px; }
+  .float-badge small { font-size: 10px; font-weight: 400; color: var(--muted); display: block; }
+
+  .badge-1 { top: 60px; left: -70px; animation: fadein 1s .5s both; }
+  .badge-2 { bottom: 120px; right: -60px; animation: fadein 1s 1s both; }
+  @keyframes fadein { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+
+  /* ── SECTIONS ── */
+  section { padding: 100px 48px; max-width: 1200px; margin: 0 auto; }
+
+  .section-label {
+    font-size: 12px; font-weight: 600; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--green); margin-bottom: 16px;
+  }
+
+  h2 {
+    font-family: 'Fraunces', serif; font-size: clamp(30px, 3.5vw, 44px);
+    font-weight: 600; line-height: 1.15; letter-spacing: -.5px;
+    color: var(--navy); margin-bottom: 16px;
+  }
+
+  .section-sub { font-size: 17px; color: var(--muted); line-height: 1.6; max-width: 520px; }
+
+  /* ── HOW IT WORKS ── */
+  .how-wrap { background: var(--mint); border-radius: 32px; }
+
+  .how-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 2px; margin-top: 56px;
+  }
+
+  .how-card {
+    background: white; padding: 36px 32px;
+    transition: transform .2s;
+  }
+
+  .how-card:first-child { border-radius: 24px 0 0 24px; }
+  .how-card:last-child { border-radius: 0 24px 24px 0; }
+  .how-card:hover { transform: translateY(-4px); }
+
+  .how-num {
+    font-family: 'Fraunces', serif; font-size: 48px; font-weight: 300;
+    color: var(--green); opacity: .35; line-height: 1; margin-bottom: 16px;
+  }
+
+  .how-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 10px; }
+  .how-card p { font-size: 14px; color: var(--muted); line-height: 1.65; }
+
+  /* ── ROLES ── */
+  .roles-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 56px; }
+
+  .role-card {
+    border-radius: 24px; padding: 36px 28px;
+    border: 1.5px solid var(--border);
+    background: white;
+    transition: border-color .2s, box-shadow .2s;
+  }
+
+  .role-card:hover {
+    border-color: var(--green);
+    box-shadow: 0 8px 32px rgba(79,155,122,.1);
+  }
+
+  .role-icon { font-size: 36px; margin-bottom: 20px; }
+  .role-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+  .role-card .role-who { font-size: 12px; color: var(--green); font-weight: 600; margin-bottom: 14px; }
+  .role-card p { font-size: 14px; color: var(--muted); line-height: 1.65; margin-bottom: 16px; }
+
+  .feature-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .feature-list li { font-size: 13px; color: var(--navy); display: flex; align-items: center; gap: 8px; }
+  .feature-list li::before { content: '✓'; color: var(--green); font-weight: 700; font-size: 12px; }
+
+  /* ── PRICING ── */
+  .pricing-bg { background: var(--navy); border-radius: 40px; padding: 80px 60px; }
+  .pricing-bg h2 { color: white; }
+  .pricing-bg .section-label { color: var(--yellow); }
+  .pricing-bg .section-sub { color: rgba(255,255,255,.6); }
+
+  .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 56px; }
+
+  .price-card {
+    background: rgba(255,255,255,.06); border-radius: 24px; padding: 36px 28px;
+    border: 1px solid rgba(255,255,255,.1);
+    position: relative; transition: background .2s;
+  }
+
+  .price-card.featured {
+    background: white; border-color: white;
+  }
+
+  .price-card.featured h3,
+  .price-card.featured .price-amount,
+  .price-card.featured .price-features li { color: var(--navy); }
+  .price-card.featured .price-sub { color: var(--muted); }
+
+  .price-badge {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    background: var(--yellow); color: var(--navy);
+    padding: 4px 14px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  }
+
+  .price-card h3 { font-size: 14px; font-weight: 600; color: rgba(255,255,255,.6); margin-bottom: 20px; text-transform: uppercase; letter-spacing: .5px; }
+  .price-amount { font-family: 'Fraunces', serif; font-size: 42px; font-weight: 600; color: white; line-height: 1; }
+  .price-amount span { font-size: 16px; font-family: 'Inter', sans-serif; font-weight: 400; }
+  .price-sub { font-size: 12px; color: rgba(255,255,255,.4); margin: 8px 0 28px; }
+
+  .price-features { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 32px; }
+  .price-features li { font-size: 13px; color: rgba(255,255,255,.7); display: flex; gap: 8px; align-items: flex-start; }
+  .price-features li::before { content: '✓'; color: var(--green); font-weight: 700; flex-shrink: 0; }
+
+  .btn-white { background: white; color: var(--navy); }
+  .btn-outline-white { background: transparent; color: white; border: 1.5px solid rgba(255,255,255,.3); }
+
+  /* ── TESTIMONIAL ── */
+  .testimonial-wrap {
+    background: var(--mint); border-radius: 32px;
+    padding: 80px 60px; text-align: center;
+  }
+
+  .testimonial-wrap blockquote {
+    font-family: 'Fraunces', serif; font-style: italic;
+    font-size: clamp(20px, 2.5vw, 28px); font-weight: 300;
+    color: var(--navy); line-height: 1.5;
+    max-width: 700px; margin: 0 auto 32px;
+  }
+
+  .testimonial-credit { display: flex; align-items: center; justify-content: center; gap: 14px; }
+  .testimonial-av { width: 48px; height: 48px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 18px; }
+  .testimonial-name { font-weight: 600; font-size: 14px; }
+  .testimonial-title { font-size: 13px; color: var(--muted); }
+
+  /* ── CTA ── */
+  .cta-wrap {
+    text-align: center; padding: 100px 48px 120px;
+  }
+
+  .cta-wrap h2 { font-size: clamp(36px, 5vw, 60px); margin-bottom: 16px; }
+  .cta-wrap p { color: var(--muted); font-size: 17px; margin-bottom: 40px; }
+  .cta-actions { display: flex; justify-content: center; gap: 16px; }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 48px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px; color: var(--muted);
+  }
+
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--navy); }
+  .footer-links { display: flex; gap: 28px; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    nav { padding: 14px 24px; }
+    .nav-links { display: none; }
+    .hero { grid-template-columns: 1fr; padding: 60px 24px; text-align: center; min-height: auto; gap: 60px; }
+    .hero-text { padding-right: 0; }
+    .hero-sub { margin: 0 auto 40px; }
+    .hero-actions { justify-content: center; }
+    .hero-trust { justify-content: center; }
+    .hero-visual { order: -1; }
+    .badge-1, .badge-2 { display: none; }
+    section { padding: 60px 24px; }
+    .how-grid, .roles-grid, .pricing-grid { grid-template-columns: 1fr; gap: 16px; }
+    .how-card:first-child, .how-card:last-child { border-radius: 24px; }
+    .pricing-bg, .testimonial-wrap { padding: 48px 24px; }
+    footer { flex-direction: column; gap: 20px; text-align: center; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .phone-wrap, .float-badge { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="logo">
+    <div class="logo-icon">🌱</div>
+    LittleLoop
+  </a>
+  <div class="nav-links">
+    <a href="#how">How it works</a>
+    <a href="#roles">For everyone</a>
+  </div>
+  <div style="display:flex;gap:10px">
+    <a href="https://littleloop-creche-v1.vercel.app/login" class="btn btn-outline">Sign in</a>
+    <a href="mailto:burfix@gmail.com?subject=LittleLoop Demo Request" class="btn btn-primary">Book a demo</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-text">
+    <div class="eyebrow">Built for South African creches</div>
+    <h1>Every parent deserves to <em>know</em></h1>
+    <p class="hero-sub">LittleLoop gives creches a real-time parent portal, teacher toolkit, and owner cockpit — in one mobile-first platform. No WhatsApp groups. No paper registers.</p>
+    <div class="hero-actions">
+      <a href="mailto:burfix@gmail.com?subject=LittleLoop Demo Request" class="btn btn-primary">Book a free demo →</a>
+      <a href="https://littleloop-creche-v1.vercel.app/login" class="btn btn-outline">See it live</a>
+    </div>
+    <div class="hero-trust">
+      <div class="avatar-stack">
+        <div class="av">P</div>
+        <div class="av">K</div>
+        <div class="av">S</div>
+        <div class="av">M</div>
+      </div>
+      <div class="trust-text">
+        <strong>Trusted by early adopters</strong><br/>
+        Piloting with leading Cape Town creches
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-visual">
+    <div class="phone-wrap">
+      <!-- Floating badges -->
+      <div class="float-badge badge-1">
+        <span class="icon">😊</span>
+        <div>
+          Mia is happy today
+          <small>Just now · Toddlers class</small>
+        </div>
+      </div>
+
+      <div class="float-badge badge-2">
+        <span class="icon">🍽️</span>
+        <div>
+          Lunch: all eaten
+          <small>12:30 PM</small>
+        </div>
+      </div>
+
+      <div class="phone">
+        <div class="phone-inner">
+          <!-- Phone Header -->
+          <div class="phone-status">
+            <div class="phone-status-top">
+              <span>9:41 AM</span>
+              <span>●●●</span>
+            </div>
+            <div class="phone-header">
+              <div class="phone-header-left">
+                <p>Wednesday, 25 June</p>
+                <h3>Pebblestones 🌸</h3>
+              </div>
+              <div class="phone-avatar">👤</div>
+            </div>
+            <div class="phone-card-row">
+              <div><span class="val">😊</span><span class="lbl">Mood</span></div>
+              <div><span class="val">45m</span><span class="lbl">Nap</span></div>
+              <div><span class="val">3/3</span><span class="lbl">Meals</span></div>
+            </div>
+          </div>
+
+          <!-- Body -->
+          <div class="phone-body">
+            <div>
+              <div class="phone-section-title">Meals today</div>
+              <div class="phone-update-card">
+                <div class="phone-meal-row"><span>Breakfast</span><span class="pill-sm pill-green">All eaten</span></div>
+                <div class="phone-meal-row"><span>Lunch</span><span class="pill-sm pill-green">All eaten</span></div>
+                <div class="phone-meal-row" style="margin-bottom:0"><span>Snack</span><span class="pill-sm pill-amber">Partly eaten</span></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="phone-section-title">Teacher note</div>
+              <div class="phone-note">Mia had a wonderful day! She really enjoyed finger painting and made a friend in circle time. 🎨</div>
+            </div>
+
+            <div>
+              <div class="phone-section-title">Activities</div>
+              <div class="phone-activity-row">
+                <span class="activity-tag">Finger painting</span>
+                <span class="activity-tag">Story time</span>
+                <span class="activity-tag">Outdoor play</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Nav -->
+          <div class="phone-nav">
+            <div class="phone-nav-item active"><div class="icon">🏠</div>Home</div>
+            <div class="phone-nav-item"><div class="icon">📷</div>Moments</div>
+            <div class="phone-nav-item"><div class="icon">💳</div>Billing</div>
+            <div class="phone-nav-item"><div class="icon">💬</div>Chat</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="how-wrap" style="padding: 64px 60px;">
+    <div class="section-label">How it works</div>
+    <h2>Set up in a day.<br/>Used every day.</h2>
+    <p class="section-sub">LittleLoop is designed for creche owners who don't have time for complexity.</p>
+
+    <div class="how-grid">
+      <div class="how-card">
+        <div class="how-num">01</div>
+        <h3>You onboard your school</h3>
+        <p>We set up your school in minutes. Add your classes, invite your teachers and parents — they get an email and set their own password.</p>
+      </div>
+      <div class="how-card">
+        <div class="how-num">02</div>
+        <h3>Teachers run the day</h3>
+        <p>Check children in, log meals, mood, and nap time. Post moments. Tick off tasks. All from their phone, in real time.</p>
+      </div>
+      <div class="how-card">
+        <div class="how-num">03</div>
+        <h3>Parents stay connected</h3>
+        <p>Every parent sees their child's full day as it happens — no waiting for a WhatsApp message or a paper note at pickup.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOR EVERYONE -->
+<section id="roles">
+  <div class="section-label">For everyone at your creche</div>
+  <h2>One platform.<br/>Three dashboards.</h2>
+  <p class="section-sub">Every role gets exactly the tools they need — nothing more, nothing less.</p>
+
+  <div class="roles-grid">
+    <div class="role-card">
+      <div class="role-icon">👶</div>
+      <div class="role-who">For Parents</div>
+      <h3>See your child's whole day</h3>
+      <p>From check-in to checkout, every meal, every mood, every moment — visible on your phone in real time.</p>
+      <ul class="feature-list">
+        <li>Live daily updates</li>
+        <li>Photo moments gallery</li>
+        <li>Billing & payment history</li>
+        <li>Direct chat with teachers</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-icon">👩‍🏫</div>
+      <div class="role-who">For Teachers</div>
+      <h3>Run your class without paperwork</h3>
+      <p>Digital register, meal logging, mood tracking, and photo sharing — everything in one place, done in seconds.</p>
+      <ul class="feature-list">
+        <li>One-tap check-in</li>
+        <li>Meal & mood logging</li>
+        <li>Photo uploads to parents</li>
+        <li>Daily task management</li>
+      </ul>
+    </div>
+    <div class="role-card">
+      <div class="role-icon">🏫</div>
+      <div class="role-who">For Owners</div>
+      <h3>Run your business, not your inbox</h3>
+      <p>Live attendance, fee collection status, outstanding payments, and staff management — all in your cockpit.</p>
+      <ul class="feature-list">
+        <li>Real-time attendance rate</li>
+        <li>Revenue & outstanding fees</li>
+        <li>Fee reminder automation</li>
+        <li>Multi-branch support</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIAL -->
+<section style="padding: 0 48px 100px;">
+  <div class="testimonial-wrap">
+    <blockquote>"Parents used to message us every afternoon asking how the day went. Now they just know — before pickup. That's what LittleLoop changed for us."</blockquote>
+    <div class="testimonial-credit">
+      <div class="testimonial-av">P</div>
+      <div>
+        <div class="testimonial-name">Pilot School Owner</div>
+        <div class="testimonial-title">Cape Town, Western Cape</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<div class="cta-wrap">
+  <div class="section-label" style="text-align:center">Ready to get started?</div>
+  <h2>Your creche deserves<br/><em style="color:var(--green)">better tools.</em></h2>
+  <p>Join the growing network of South African creches on LittleLoop. Setup takes one day.</p>
+  <div class="cta-actions">
+    <a href="mailto:burfix@gmail.com?subject=LittleLoop Demo Request" class="btn btn-primary" style="padding: 14px 32px; font-size: 16px;">Book a free demo</a>
+    <a href="https://littleloop-creche-v1.vercel.app/login" class="btn btn-outline" style="padding: 14px 32px; font-size: 16px;">See the live app</a>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <a href="#" class="logo" style="font-size:16px">
+    <div class="logo-icon" style="width:28px;height:28px;font-size:14px;">🌱</div>
+    LittleLoop
+  </a>
+  <div class="footer-links">
+    <a href="mailto:burfix@gmail.com">Contact</a>
+    <a href="#">Privacy</a>
+    <a href="#">POPIA compliant</a>
+  </div>
+  <div>© 2026 LittleLoop. Built in Cape Town. 🇿🇦</div>
+</footer>
+
+</body>
+</html>

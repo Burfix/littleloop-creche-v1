@@ -8,7 +8,7 @@ import { useSchool } from "@/lib/school-context";
 import {
   getChildrenForParent, getDailyUpdateForChild,
   getMomentsForChild, getInvoicesForParent,
-  subscribeToThread, sendMessage, updateInvoiceProof,
+  getClassRoom, subscribeToThread, sendMessage, updateInvoiceProof,
 } from "@/lib/db";
 import { storage } from "@/lib/firebase";
 import type { Child, DailyUpdate, Moment, Invoice, Message } from "@/lib/types";
@@ -36,6 +36,7 @@ export default function ParentDashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMsg, setNewMsg] = useState("");
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [uploadingInvoiceId, setUploadingInvoiceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -52,9 +53,29 @@ export default function ParentDashboard() {
 
   useEffect(() => {
     if (!selectedChild) return;
+    let cancelled = false;
     const today = new Date().toISOString().split("T")[0];
     getDailyUpdateForChild(selectedChild.id, today).then(setUpdate);
     getMomentsForChild(selectedChild.id).then(setMoments);
+    getClassRoom(selectedChild.classId)
+      .then(classRoom => {
+        if (cancelled) return;
+        const teacherId = classRoom?.schoolId === selectedChild.schoolId
+          ? classRoom.teacherIds[0] ?? null
+          : null;
+        setSelectedTeacherId(teacherId);
+        setMessages([]);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSelectedTeacherId(null);
+          setMessages([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedChild]);
 
   useEffect(() => {
@@ -63,17 +84,24 @@ export default function ParentDashboard() {
   }, [appUser]);
 
   useEffect(() => {
-    if (!appUser || !selectedChild) return;
-    const threadId = `${appUser.uid}_${selectedChild.id}`;
+    if (!appUser || !selectedChild || !selectedTeacherId) {
+      return;
+    }
+    const threadId = `${selectedTeacherId}_${appUser.uid}_${selectedChild.id}`;
     const unsub = subscribeToThread(threadId, setMessages);
     return unsub;
-  }, [appUser, selectedChild]);
+  }, [appUser, selectedChild, selectedTeacherId]);
 
   const handleSend = async () => {
     if (!newMsg.trim() || !appUser || !selectedChild) return;
-    const threadId = `${appUser.uid}_${selectedChild.id}`;
+    if (!selectedTeacherId) {
+      toast.error("No teacher assigned for this child yet");
+      return;
+    }
+    const threadId = `${selectedTeacherId}_${appUser.uid}_${selectedChild.id}`;
     await sendMessage({
-      schoolId: school?.id ?? "",
+      schoolId: selectedChild.schoolId,
+      childId: selectedChild.id,
       threadId,
       senderId: appUser.uid,
       senderRole: "parent",
@@ -395,7 +423,7 @@ export default function ParentDashboard() {
             <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
               {messages.length === 0 && (
                 <p style={{ color: "var(--text-muted)", fontSize: 14, textAlign: "center", marginTop: 40 }}>
-                  No messages yet. Say hello!
+                  {selectedTeacherId ? "No messages yet. Say hello!" : "No teacher assigned for this child yet."}
                 </p>
               )}
               {messages.map(m => (
@@ -420,11 +448,17 @@ export default function ParentDashboard() {
                 className="input"
                 placeholder="Type a message…"
                 value={newMsg}
+                disabled={!selectedTeacherId}
                 onChange={e => setNewMsg(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleSend()}
                 style={{ flex: 1 }}
               />
-              <button className="btn btn-primary" onClick={handleSend} style={{ padding: "12px 18px" }}>
+              <button
+                className="btn btn-primary"
+                onClick={handleSend}
+                disabled={!selectedTeacherId}
+                style={{ padding: "12px 18px" }}
+              >
                 Send
               </button>
             </div>

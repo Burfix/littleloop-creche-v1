@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { requireSuperAdmin } from "@/lib/api-auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
@@ -10,6 +10,9 @@ export async function POST(req: NextRequest) {
       windowSeconds: 60,
     });
     if (rateLimited) return rateLimited;
+
+    const authorized = await requireSuperAdmin(req);
+    if ("error" in authorized) return authorized.error;
 
     const { email, displayName, role, schoolId, branchId, childIds, phone } = await req.json();
 
@@ -25,8 +28,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "School is required for this role" }, { status: 400 });
     }
 
-    const auth = adminAuth();
-    const db = adminDb();
+    const { auth, db } = authorized;
 
     // 1. Create or get Firebase Auth user
     let uid: string;
