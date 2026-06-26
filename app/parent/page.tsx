@@ -15,7 +15,7 @@ import type { Child, DailyUpdate, Moment, Invoice, Message } from "@/lib/types";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { Home, Image, CreditCard, MessageCircle, LogOut } from "lucide-react";
+import { Home, Image, CreditCard, MessageCircle, LogOut, RefreshCw } from "lucide-react";
 
 type Tab = "home" | "moments" | "billing" | "chat";
 
@@ -39,6 +39,8 @@ export default function ParentDashboard() {
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [uploadingInvoiceId, setUploadingInvoiceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [chatLastOpened, setChatLastOpened] = useState(0);
 
   useEffect(() => {
     if (!appUser) { router.replace("/login"); return; }
@@ -116,6 +118,19 @@ export default function ParentDashboard() {
     router.replace("/login");
   };
 
+  const handleRefresh = async () => {
+    if (!selectedChild || refreshing) return;
+    setRefreshing(true);
+    const today = new Date().toISOString().split("T")[0];
+    const [upd, moms] = await Promise.all([
+      getDailyUpdateForChild(selectedChild.id, today),
+      getMomentsForChild(selectedChild.id),
+    ]);
+    setUpdate(upd);
+    setMoments(moms);
+    setRefreshing(false);
+  };
+
   const handleProofUpload = async (invoice: Invoice, files: FileList | null) => {
     const file = files?.[0];
     if (!file) return;
@@ -155,6 +170,9 @@ export default function ParentDashboard() {
 
   const today = format(new Date(), "EEEE, d MMMM");
   const outstanding = invoices.find(i => i.status === "outstanding" || i.status === "overdue");
+  const unreadCount = messages.filter(
+    m => m.senderId !== appUser.uid && new Date(m.createdAt).getTime() > chatLastOpened
+  ).length;
 
   return (
     <div className="app-shell">
@@ -182,6 +200,14 @@ export default function ParentDashboard() {
               ))}
             </select>
           )}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}
+            aria-label="Refresh"
+          >
+            <RefreshCw size={17} style={{ transition: "transform 0.5s", transform: refreshing ? "rotate(360deg)" : "none" }} />
+          </button>
           <button onClick={handleSignOut} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>
             <LogOut size={18} />
           </button>
@@ -189,6 +215,18 @@ export default function ParentDashboard() {
       </div>
 
       <div className="page-content" style={{ padding: "16px 20px" }}>
+
+        {/* ── EMPTY STATE ── */}
+        {children.length === 0 && (
+          <div style={{ textAlign: "center", padding: "60px 20px" }}>
+            <div style={{ fontSize: 52, marginBottom: 16 }}>👶</div>
+            <h3 style={{ margin: "0 0 8px", fontSize: 18, fontWeight: 700 }}>No children linked yet</h3>
+            <p style={{ margin: 0, fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6 }}>
+              Ask your school to link your account to your child&apos;s profile.
+              Once they do, daily updates will appear here.
+            </p>
+          </div>
+        )}
 
         {/* ── HOME TAB ── */}
         {tab === "home" && selectedChild && (
@@ -213,8 +251,19 @@ export default function ParentDashboard() {
                 <div>
                   <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>Today&apos;s update</p>
                   <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-                    {selectedChild.firstName} {update?.checkedIn ? "is in care ✓" : "not yet checked in"}
+                    {selectedChild.firstName}{" "}
+                    {update?.checkOutTime
+                      ? `went home at ${format(new Date(update.checkOutTime), "HH:mm")}`
+                      : update?.checkedIn
+                        ? "is in care ✓"
+                        : "not yet checked in"}
                   </h3>
+                  {update?.checkInTime && (
+                    <p style={{ margin: "3px 0 0", fontSize: 12, opacity: 0.75 }}>
+                      Arrived {format(new Date(update.checkInTime), "HH:mm")}
+                      {update.checkOutTime && ` · Left ${format(new Date(update.checkOutTime), "HH:mm")}`}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -445,7 +494,7 @@ export default function ParentDashboard() {
                 </div>
               ))}
             </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 12, paddingBottom: 80 }}>
+            <div style={{ display: "flex", gap: 8, marginTop: 12, paddingBottom: "max(80px, calc(64px + env(safe-area-inset-bottom)))" }}>
               <input
                 className="input"
                 placeholder="Type a message…"
@@ -476,8 +525,28 @@ export default function ParentDashboard() {
           { id: "billing", Icon: CreditCard, label: "Billing" },
           { id: "chat", Icon: MessageCircle, label: "Chat" },
         ] as const).map(({ id, Icon, label }) => (
-          <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
-            <Icon size={20} />
+          <button
+            key={id}
+            className={tab === id ? "active" : ""}
+            onClick={() => {
+              setTab(id);
+              if (id === "chat") setChatLastOpened(Date.now());
+            }}
+          >
+            <div style={{ position: "relative", display: "inline-flex" }}>
+              <Icon size={20} />
+              {id === "chat" && unreadCount > 0 && tab !== "chat" && (
+                <span style={{
+                  position: "absolute", top: -5, right: -7,
+                  background: "var(--error, #ef4444)", color: "white",
+                  borderRadius: "50%", fontSize: 10, fontWeight: 700,
+                  width: 15, height: 15, display: "flex", alignItems: "center", justifyContent: "center",
+                  lineHeight: 1,
+                }}>
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </div>
             {label}
           </button>
         ))}
