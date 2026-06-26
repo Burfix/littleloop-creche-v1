@@ -128,7 +128,7 @@ export default function OwnerDashboard() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell app-shell--wide">
       {/* Header */}
       <div style={{
         padding: "16px 20px 12px",
@@ -197,7 +197,7 @@ export default function OwnerDashboard() {
       </div>
 
       {/* Bottom nav */}
-      <nav className="bottom-nav">
+      <nav className="bottom-nav bottom-nav--wide">
         {([
           { id: "overview", Icon: BarChart2, label: "Overview" },
           { id: "billing", Icon: CreditCard, label: "Billing" },

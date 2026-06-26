@@ -8,7 +8,7 @@ import { useSchool } from "@/lib/school-context";
 import {
   getChildrenForParent, getDailyUpdateForChild,
   getMomentsForChild, getInvoicesForParent,
-  getClassRoom, subscribeToThread, sendMessage, updateInvoiceProof,
+  getClassRoom, subscribeToThread, sendMessage, updateInvoiceProof, markThreadMessagesRead,
 } from "@/lib/db";
 import { storage } from "@/lib/firebase";
 import type { Child, DailyUpdate, Moment, Invoice, Message } from "@/lib/types";
@@ -18,6 +18,29 @@ import toast from "react-hot-toast";
 import { Home, Image, CreditCard, MessageCircle, LogOut, RefreshCw } from "lucide-react";
 
 type Tab = "home" | "moments" | "billing" | "chat";
+
+const AVATAR_PALETTE = [
+  { bg: "#fce7f3", text: "#9d174d" },
+  { bg: "#dbeafe", text: "#1e40af" },
+  { bg: "#d1fae5", text: "#065f46" },
+  { bg: "#fef3c7", text: "#92400e" },
+  { bg: "#ede9fe", text: "#4c1d95" },
+  { bg: "#fee2e2", text: "#991b1b" },
+  { bg: "#ccfbf1", text: "#0f766e" },
+];
+
+function avatarColor(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+}
+
+function timeGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 const MOOD_LABELS: Record<string, string> = {
   "😊": "Happy", "😐": "Okay", "😢": "Upset", "😴": "Tired", "🤒": "Unwell",
@@ -170,6 +193,8 @@ export default function ParentDashboard() {
 
   const today = format(new Date(), "EEEE, d MMMM");
   const outstanding = invoices.find(i => i.status === "outstanding" || i.status === "overdue");
+  const firstName = appUser.displayName?.split(" ")[0] ?? "there";
+  const greeting = timeGreeting();
   const unreadCount = messages.filter(
     m => m.senderId !== appUser.uid && new Date(m.createdAt).getTime() > chatLastOpened
   ).length;
@@ -184,9 +209,10 @@ export default function ParentDashboard() {
       }}>
         <div>
           <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>{today}</p>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-            {school?.name ?? "LittleLoop"}
-          </h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{greeting}, {firstName}</h2>
+          {school?.name && (
+            <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>{school.name}</p>
+          )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {children.length > 1 && (
@@ -234,7 +260,7 @@ export default function ParentDashboard() {
             {/* Child status card */}
             <div className="card" style={{ background: "var(--brand)", color: "white", border: "none" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div className="avatar" style={{ background: "rgba(255,255,255,0.2)", color: "white", fontSize: 20 }}>
+                <div className="avatar" style={{ background: "rgba(255,255,255,0.2)", color: "white", fontSize: 20, overflow: "hidden" }}>
                   {selectedChild.avatarUrl
                     ? (
                         <NextImage
@@ -243,7 +269,7 @@ export default function ParentDashboard() {
                           width={40}
                           height={40}
                           unoptimized
-                          style={{ width: "100%", height: "100%", borderRadius: "50%" }}
+                          style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
                         />
                       )
                     : selectedChild.firstName[0]}
@@ -355,9 +381,21 @@ export default function ParentDashboard() {
         {/* ── MOMENTS TAB ── */}
         {tab === "moments" && (
           <div>
-            <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700 }}>
-              {selectedChild?.firstName}&apos;s moments
-            </h3>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              {selectedChild && (() => {
+                const col = avatarColor(selectedChild.firstName);
+                return (
+                  <div className="avatar" style={{ background: col.bg, color: col.text, fontSize: 16, flexShrink: 0 }}>
+                    {selectedChild.avatarUrl
+                      ? <NextImage src={selectedChild.avatarUrl} alt="" width={36} height={36} unoptimized style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
+                      : selectedChild.firstName[0]}
+                  </div>
+                );
+              })()}
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+                {selectedChild?.firstName}&apos;s moments
+              </h3>
+            </div>
             {moments.length === 0 ? (
               <div style={{ textAlign: "center", padding: "48px 0", color: "var(--text-muted)" }}>
                 <div style={{ fontSize: 40, marginBottom: 12 }}>📷</div>
@@ -468,31 +506,51 @@ export default function ParentDashboard() {
         {/* ── CHAT TAB ── */}
         {tab === "chat" && (
           <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 180px)" }}>
-            <h3 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 700 }}>
-              Chat with {selectedChild?.firstName}&apos;s teacher
-            </h3>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              {selectedChild && (() => {
+                const col = avatarColor(selectedChild.firstName);
+                return (
+                  <div className="avatar" style={{ background: col.bg, color: col.text, fontSize: 15, flexShrink: 0 }}>
+                    {selectedChild.firstName[0]}
+                  </div>
+                );
+              })()}
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+                Chat with {selectedChild?.firstName}&apos;s teacher
+              </h3>
+            </div>
             <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
               {messages.length === 0 && (
                 <p style={{ color: "var(--text-muted)", fontSize: 14, textAlign: "center", marginTop: 40 }}>
                   {selectedTeacherId ? "No messages yet. Say hello!" : "No teacher assigned for this child yet."}
                 </p>
               )}
-              {messages.map(m => (
-                <div key={m.id} style={{
-                  alignSelf: m.senderId === appUser?.uid ? "flex-end" : "flex-start",
-                  background: m.senderId === appUser?.uid ? "var(--brand)" : "var(--surface-2)",
-                  color: m.senderId === appUser?.uid ? "white" : "var(--text)",
-                  borderRadius: 12,
-                  padding: "10px 14px",
-                  maxWidth: "80%",
-                  fontSize: 14,
-                }}>
-                  <p style={{ margin: 0 }}>{m.text}</p>
-                  <p style={{ margin: "4px 0 0", fontSize: 10, opacity: 0.7 }}>
-                    {format(new Date(m.createdAt), "HH:mm")}
-                  </p>
-                </div>
-              ))}
+              {messages.map((m, i) => {
+                const isMine = m.senderId === appUser?.uid;
+                // Show "Seen" only under the last message I sent that has been read
+                const isLastMine = isMine && messages.slice(i + 1).every(next => next.senderId === appUser?.uid);
+                return (
+                  <div key={m.id} style={{ alignSelf: isMine ? "flex-end" : "flex-start", maxWidth: "80%" }}>
+                    <div style={{
+                      background: isMine ? "var(--brand)" : "var(--surface-2)",
+                      color: isMine ? "white" : "var(--text)",
+                      borderRadius: 12,
+                      padding: "10px 14px",
+                      fontSize: 14,
+                    }}>
+                      <p style={{ margin: 0 }}>{m.text}</p>
+                      <p style={{ margin: "4px 0 0", fontSize: 10, opacity: 0.7 }}>
+                        {format(new Date(m.createdAt), "HH:mm")}
+                      </p>
+                    </div>
+                    {isMine && isLastMine && m.read && (
+                      <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--text-muted)", textAlign: "right" }}>
+                        Seen ✓
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 12, paddingBottom: "max(80px, calc(64px + env(safe-area-inset-bottom)))" }}>
               <input
@@ -530,7 +588,13 @@ export default function ParentDashboard() {
             className={tab === id ? "active" : ""}
             onClick={() => {
               setTab(id);
-              if (id === "chat") setChatLastOpened(Date.now());
+              if (id === "chat") {
+                setChatLastOpened(Date.now());
+                if (appUser && selectedTeacherId && selectedChild) {
+                  const threadId = `${selectedTeacherId}_${appUser.uid}_${selectedChild.id}`;
+                  markThreadMessagesRead(threadId, appUser.uid).catch(() => null);
+                }
+              }
             }}
           >
             <div style={{ position: "relative", display: "inline-flex" }}>

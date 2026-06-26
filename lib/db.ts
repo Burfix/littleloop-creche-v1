@@ -19,6 +19,7 @@ import {
   QueryConstraint,
   QueryDocumentSnapshot,
   getCountFromServer,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type {
@@ -442,6 +443,25 @@ export function subscribeToThread(
     } as Message));
     callback(msgs);
   });
+}
+
+/**
+ * Mark all messages in a thread that were NOT sent by `readerUid` as read: true.
+ * Called when a user opens the chat tab.
+ */
+export async function markThreadMessagesRead(threadId: string, readerUid: string): Promise<void> {
+  const q = query(
+    collection(db, "messages"),
+    where("threadId", "==", threadId),
+    where("read", "==", false)
+  );
+  const snap = await getDocs(q);
+  const unread = snap.docs.filter(d => d.data().senderId !== readerUid);
+  if (unread.length === 0) return;
+
+  const batch = writeBatch(db);
+  unread.forEach(d => batch.update(d.ref, { read: true }));
+  await batch.commit();
 }
 
 export async function sendMessage(data: Omit<Message, "id" | "createdAt">): Promise<void> {

@@ -76,6 +76,15 @@ body {
 .pill-blue   { background: var(--brand-light); color: var(--brand-dark); }
 .pill-gray   { background: #f1f5f9; color: #475569; }
 
+/* Wide shell — owner & admin on tablet/desktop */
+.app-shell--wide {
+  max-width: 768px;
+}
+
+.bottom-nav--wide {
+  max-width: 768px;
+}
+
 /* Bottom nav */
 .bottom-nav {
   position: fixed;
