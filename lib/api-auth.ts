@@ -25,3 +25,28 @@ export async function requireSuperAdmin(req: NextRequest) {
     return { error: NextResponse.json({ error: "Invalid authentication token" }, { status: 401 }) };
   }
 }
+
+export async function requireAppUser(req: NextRequest) {
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : null;
+
+  if (!token) {
+    return { error: NextResponse.json({ error: "Authentication required" }, { status: 401 }) };
+  }
+
+  const auth = adminAuth();
+  const db = adminDb();
+
+  try {
+    const decoded = await auth.verifyIdToken(token);
+    const userSnap = await db.collection("users").doc(decoded.uid).get();
+
+    if (!userSnap.exists) {
+      return { error: NextResponse.json({ error: "User profile not found" }, { status: 403 }) };
+    }
+
+    return { auth, db, uid: decoded.uid, user: userSnap.data() };
+  } catch {
+    return { error: NextResponse.json({ error: "Invalid authentication token" }, { status: 401 }) };
+  }
+}
