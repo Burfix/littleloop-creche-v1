@@ -30,7 +30,7 @@ interface ThreadTarget {
 const MOODS: MoodEmoji[] = ["😊", "😐", "😢", "😴", "🤒"];
 
 export default function TeacherDashboard() {
-  const { appUser, signOut } = useAuth();
+  const { appUser, firebaseUser, signOut } = useAuth();
   const { school } = useSchool();
   const router = useRouter();
 
@@ -86,6 +86,7 @@ export default function TeacherDashboard() {
   const handleSend = async () => {
     if (!draft.trim() || !appUser || !school || !selectedThread || sending) return;
     setSending(true);
+    const text = draft.trim();
     try {
       await sendMessage({
         threadId: selectedThread.threadId,
@@ -93,10 +94,23 @@ export default function TeacherDashboard() {
         childId: selectedThread.childId,
         senderId: appUser.uid,
         senderRole: "teacher",
-        text: draft.trim(),
+        text,
         read: false,
       });
       setDraft("");
+
+      // Fire-and-forget push notification to parent — never blocks the UI
+      firebaseUser?.getIdToken().then(token => {
+        fetch("/api/notifications/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            targetUid: selectedThread.parentId,
+            title: `${appUser.displayName ?? "Your teacher"} sent an update`,
+            body: text.length > 80 ? text.slice(0, 77) + "…" : text,
+          }),
+        }).catch(() => {}); // silent — push is best-effort
+      }).catch(() => {});
     } catch {
       toast.error("Could not send message");
     } finally {

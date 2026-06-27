@@ -32,6 +32,7 @@ export interface AppUser {
   branchId?: string;       // for teachers
   childIds?: string[];     // for parents
   avatarUrl?: string;
+  fcmToken?: string;
   createdAt: string;
 }
 

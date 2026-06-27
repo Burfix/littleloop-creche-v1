@@ -8,7 +8,7 @@ import { useSchool } from "@/lib/school-context";
 import {
   getChildrenForParent, getDailyUpdateForChild,
   getMomentsForChild, getInvoicesForParent,
-  getClassRoom, subscribeToThread, sendMessage, updateInvoiceProof, markThreadMessagesRead,
+  getClassRoom, subscribeToThread, updateInvoiceProof, markThreadMessagesRead,
 } from "@/lib/db";
 import { storage } from "@/lib/firebase";
 import type { Child, DailyUpdate, Moment, Invoice, Message } from "@/lib/types";
@@ -16,8 +16,9 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage
 import { format } from "date-fns";
 import toast from "react-hot-toast";
 import { Home, Image, CreditCard, MessageCircle, LogOut, RefreshCw } from "lucide-react";
+import { registerForPushNotifications } from "@/lib/notifications";
 
-type Tab = "home" | "moments" | "billing" | "chat";
+type Tab = "home" | "moments" | "billing" | "notifications";
 
 const AVATAR_PALETTE = [
   { bg: "#fce7f3", text: "#9d174d" },
@@ -58,12 +59,10 @@ export default function ParentDashboard() {
   const [moments, setMoments] = useState<Moment[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [newMsg, setNewMsg] = useState("");
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [uploadingInvoiceId, setUploadingInvoiceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [chatLastOpened, setChatLastOpened] = useState(0);
 
   useEffect(() => {
     if (!appUser) { router.replace("/login"); return; }
@@ -74,6 +73,9 @@ export default function ParentDashboard() {
       if (c.length > 0) setSelectedChild(c[0]);
       setLoading(false);
     });
+
+    // Register for push notifications — silent if browser doesn't support it
+    registerForPushNotifications(appUser.uid);
   }, [appUser, router]);
 
   useEffect(() => {
@@ -116,25 +118,6 @@ export default function ParentDashboard() {
     const unsub = subscribeToThread(threadId, setMessages);
     return unsub;
   }, [appUser, selectedChild, selectedTeacherId]);
-
-  const handleSend = async () => {
-    if (!newMsg.trim() || !appUser || !selectedChild) return;
-    if (!selectedTeacherId) {
-      toast.error("No teacher assigned for this child yet");
-      return;
-    }
-    const threadId = `${selectedTeacherId}_${appUser.uid}_${selectedChild.id}`;
-    await sendMessage({
-      schoolId: selectedChild.schoolId,
-      childId: selectedChild.id,
-      threadId,
-      senderId: appUser.uid,
-      senderRole: "parent",
-      text: newMsg.trim(),
-      read: false,
-    });
-    setNewMsg("");
-  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -195,9 +178,7 @@ export default function ParentDashboard() {
   const outstanding = invoices.find(i => i.status === "outstanding" || i.status === "overdue");
   const firstName = appUser.displayName?.split(" ")[0] ?? "there";
   const greeting = timeGreeting();
-  const unreadCount = messages.filter(
-    m => m.senderId !== appUser.uid && new Date(m.createdAt).getTime() > chatLastOpened
-  ).length;
+  const unreadCount = messages.filter(m => m.senderId !== appUser.uid && !m.read).length;
 
   return (
     <div className="app-shell">
@@ -503,8 +484,8 @@ export default function ParentDashboard() {
           </div>
         )}
 
-        {/* ── CHAT TAB ── */}
-        {tab === "chat" && (
+        {/* ── NOTIFICATIONS TAB ── */}
+        {tab === "notifications" && (
           <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 180px)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
               {selectedChild && (() => {
@@ -516,24 +497,22 @@ export default function ParentDashboard() {
                 );
               })()}
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-                Chat with {selectedChild?.firstName}&apos;s teacher
+                Notifications for {selectedChild?.firstName}
               </h3>
             </div>
             <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
               {messages.length === 0 && (
                 <p style={{ color: "var(--text-muted)", fontSize: 14, textAlign: "center", marginTop: 40 }}>
-                  {selectedTeacherId ? "No messages yet. Say hello!" : "No teacher assigned for this child yet."}
+                  {selectedTeacherId ? "No notifications yet." : "No teacher assigned for this child yet."}
                 </p>
               )}
-              {messages.map((m, i) => {
-                const isMine = m.senderId === appUser?.uid;
-                // Show "Seen" only under the last message I sent that has been read
-                const isLastMine = isMine && messages.slice(i + 1).every(next => next.senderId === appUser?.uid);
+              {messages.filter(m => m.senderId !== appUser.uid).map(m => {
                 return (
-                  <div key={m.id} style={{ alignSelf: isMine ? "flex-end" : "flex-start", maxWidth: "80%" }}>
+                  <div key={m.id} style={{ alignSelf: "stretch" }}>
                     <div style={{
-                      background: isMine ? "var(--brand)" : "var(--surface-2)",
-                      color: isMine ? "white" : "var(--text)",
+                      background: m.read ? "var(--surface-2)" : "var(--brand-light)",
+                      color: "var(--text)",
+                      border: m.read ? "1px solid transparent" : "1px solid var(--brand)",
                       borderRadius: 12,
                       padding: "10px 14px",
                       fontSize: 14,
@@ -543,34 +522,13 @@ export default function ParentDashboard() {
                         {format(new Date(m.createdAt), "HH:mm")}
                       </p>
                     </div>
-                    {isMine && isLastMine && m.read && (
-                      <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--text-muted)", textAlign: "right" }}>
-                        Seen ✓
-                      </p>
-                    )}
                   </div>
                 );
               })}
             </div>
-            <div style={{ display: "flex", gap: 8, marginTop: 12, paddingBottom: "max(80px, calc(64px + env(safe-area-inset-bottom)))" }}>
-              <input
-                className="input"
-                placeholder="Type a message…"
-                value={newMsg}
-                disabled={!selectedTeacherId}
-                onChange={e => setNewMsg(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleSend()}
-                style={{ flex: 1 }}
-              />
-              <button
-                className="btn btn-primary"
-                onClick={handleSend}
-                disabled={!selectedTeacherId}
-                style={{ padding: "12px 18px" }}
-              >
-                Send
-              </button>
-            </div>
+            <p style={{ margin: "12px 0 0", paddingBottom: "max(80px, calc(64px + env(safe-area-inset-bottom)))", fontSize: 12, color: "var(--text-muted)", textAlign: "center" }}>
+              Replies are coming later via WhatsApp integration.
+            </p>
           </div>
         )}
       </div>
@@ -581,25 +539,26 @@ export default function ParentDashboard() {
           { id: "home", Icon: Home, label: "Home" },
           { id: "moments", Icon: Image, label: "Moments" },
           { id: "billing", Icon: CreditCard, label: "Billing" },
-          { id: "chat", Icon: MessageCircle, label: "Chat" },
+          { id: "notifications", Icon: MessageCircle, label: "Alerts" },
         ] as const).map(({ id, Icon, label }) => (
           <button
             key={id}
             className={tab === id ? "active" : ""}
             onClick={() => {
               setTab(id);
-              if (id === "chat") {
-                setChatLastOpened(Date.now());
+              if (id === "notifications") {
                 if (appUser && selectedTeacherId && selectedChild) {
                   const threadId = `${selectedTeacherId}_${appUser.uid}_${selectedChild.id}`;
-                  markThreadMessagesRead(threadId, appUser.uid).catch(() => null);
+                  markThreadMessagesRead(threadId, appUser.uid)
+                    .then(() => setMessages(prev => prev.map(m => m.senderId === appUser.uid ? m : { ...m, read: true })))
+                    .catch(() => null);
                 }
               }
             }}
           >
             <div style={{ position: "relative", display: "inline-flex" }}>
               <Icon size={20} />
-              {id === "chat" && unreadCount > 0 && tab !== "chat" && (
+              {id === "notifications" && unreadCount > 0 && tab !== "notifications" && (
                 <span style={{
                   position: "absolute", top: -5, right: -7,
                   background: "var(--error, #ef4444)", color: "white",
