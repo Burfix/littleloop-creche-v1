@@ -1,12 +1,14 @@
 "use client";
 
 import type { Child, School } from "@/lib/types";
+import { AddChildForm } from "./AddChildForm";
 import { InviteForm } from "./InviteForm";
 import { PrivacyErasurePanel } from "./PrivacyErasurePanel";
 
 interface SettingsTabProps {
   school: School;
-  children: Child[];
+  enrolledChildren: Child[];
+  onChildAdded: (child: Child) => void;
   onRequestErasure: (child: Child) => Promise<void>;
   onPermanentErasure: (child: Child, confirmName: string) => Promise<void>;
   onSignOut: () => void;
@@ -14,7 +16,8 @@ interface SettingsTabProps {
 
 export function SettingsTab({
   school,
-  children,
+  enrolledChildren,
+  onChildAdded,
   onRequestErasure,
   onPermanentErasure,
   onSignOut,
@@ -61,16 +64,24 @@ export function SettingsTab({
         </div>
       )}
 
-      <div className="card">
-        <h4 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600 }}>Invite staff or parents</h4>
+      <section className="card">
+        <h4 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600 }}>Add a child</h4>
         <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--text-muted)" }}>
-          They get a setup link to create their own password.
+          Create the child record first. A default branch and class will be created automatically if needed.
         </p>
-        <InviteForm schoolId={school.id} schoolSlug={school.slug} />
-      </div>
+        <AddChildForm schoolId={school.id} onChildAdded={onChildAdded} />
+      </section>
+
+      <section className="card">
+        <h4 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600 }}>Invite teachers and parents</h4>
+        <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--text-muted)" }}>
+          Parents can be linked to one or more children during invite.
+        </p>
+        <InviteForm schoolId={school.id} schoolSlug={school.slug} childRecords={enrolledChildren} />
+      </section>
 
       <PrivacyErasurePanel
-        childRecords={children}
+        childRecords={enrolledChildren}
         onRequestErasure={onRequestErasure}
         onPermanentErasure={onPermanentErasure}
       />

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSuperAdmin } from "@/lib/api-auth";
+import { FieldValue } from "firebase-admin/firestore";
+import { requireAppUser } from "@/lib/api-auth";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
@@ -11,14 +12,14 @@ export async function POST(req: NextRequest) {
     });
     if (rateLimited) return rateLimited;
 
-    const authorized = await requireSuperAdmin(req);
-    if ("error" in authorized) return authorized.error;
-
     const { email, displayName, role, schoolId, branchId, childIds, phone } = await req.json();
 
     if (!email || !displayName || !role) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
+
+    const authorized = await requireAppUser(req);
+    if ("error" in authorized) return authorized.error;
 
     if (!["teacher", "parent", "owner", "superadmin"].includes(role)) {
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
@@ -28,7 +29,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "School is required for this role" }, { status: 400 });
     }
 
+    const callerRole = authorized.user?.role;
+    const callerSchoolId = authorized.user?.schoolId;
+    const isSuperAdmin = callerRole === "superadmin";
+    const isOwnerForSchool = callerRole === "owner" && callerSchoolId === schoolId;
+
+    if (!isSuperAdmin && !isOwnerForSchool) {
+      return NextResponse.json({ error: "You do not have permission to invite users for this school" }, { status: 403 });
+    }
+
+    if (!isSuperAdmin && !["teacher", "parent"].includes(role)) {
+      return NextResponse.json({ error: "Owners can invite teachers and parents only" }, { status: 403 });
+    }
+
+    if (!isSuperAdmin && role === "parent" && (!Array.isArray(childIds) || childIds.length === 0)) {
+      return NextResponse.json({ error: "Assign at least one child to parent invites" }, { status: 400 });
+    }
+
     const { auth, db } = authorized;
+    const assignedChildIds = Array.isArray(childIds)
+      ? [...new Set(childIds.filter((id): id is string => typeof id === "string" && id.length > 0))]
+      : [];
+
+    if (assignedChildIds.length > 0) {
+      const childSnaps = await Promise.all(
+        assignedChildIds.map(childId => db.collection("children").doc(childId).get())
+      );
+      const invalidChild = childSnaps.find(snap => !snap.exists || snap.data()?.schoolId !== schoolId);
+      if (invalidChild) {
+        return NextResponse.json({ error: "One or more assigned children do not belong to this school" }, { status: 400 });
+      }
+    }
 
     // 1. Create or get Firebase Auth user
     let uid: string;
@@ -36,6 +67,9 @@ export async function POST(req: NextRequest) {
     try {
       const existing = await auth.getUserByEmail(email);
       uid = existing.uid;
+      if (existing.displayName !== displayName) {
+        await auth.updateUser(uid, { displayName });
+      }
     } catch {
       const newUser = await auth.createUser({
         email,
@@ -57,9 +91,21 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString(),
     };
     if (branchId) userData.branchId = branchId;
-    if (childIds) userData.childIds = childIds;
+    if (assignedChildIds.length > 0) {
+      userData.childIds = FieldValue.arrayUnion(...assignedChildIds);
+    }
 
     await db.collection("users").doc(uid).set(userData, { merge: true });
+
+    if (role === "parent" && assignedChildIds.length > 0) {
+      const batch = db.batch();
+      assignedChildIds.forEach(childId => {
+        batch.update(db.collection("children").doc(childId), {
+          parentIds: FieldValue.arrayUnion(uid),
+        });
+      });
+      await batch.commit();
+    }
 
     // 3. Send password setup email directly via Firebase Admin
     // This sends the official Firebase "Reset your password" email
