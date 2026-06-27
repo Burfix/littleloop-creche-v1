@@ -15,9 +15,18 @@ import { addMoment } from "@/lib/db";
 import type { ClassRoom, Child, DailyUpdate, Task, MoodEmoji } from "@/lib/types";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { Users, Camera, CheckSquare, LogOut } from "lucide-react";
+import { Users, Camera, CheckSquare, LogOut, MessageSquare, ChevronLeft, Send } from "lucide-react";
+import { sendMessage, subscribeToThread } from "@/lib/db";
+import type { Message } from "@/lib/types";
 
-type Tab = "checkin" | "moments" | "tasks";
+type Tab = "checkin" | "moments" | "tasks" | "messages";
+
+interface ThreadTarget {
+  childId: string;
+  parentId: string;
+  threadId: string;
+  childName: string;
+}
 const MOODS: MoodEmoji[] = ["😊", "😐", "😢", "😴", "🤒"];
 
 export default function TeacherDashboard() {
@@ -35,6 +44,13 @@ export default function TeacherDashboard() {
   const [newTask, setNewTask] = useState("");
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Messages tab
+  const [selectedThread, setSelectedThread] = useState<ThreadTarget | null>(null);
+  const [threadMessages, setThreadMessages] = useState<Message[]>([]);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -56,6 +72,37 @@ export default function TeacherDashboard() {
     getDailyUpdatesForClass(school.id, selectedClass.id, today).then(setUpdates);
     getTasksForClass(school.id, selectedClass.id).then(setTasks);
   }, [selectedClass, school, today]);
+
+  // Subscribe to active thread in real-time
+  useEffect(() => {
+    if (!selectedThread) return;
+    const unsub = subscribeToThread(selectedThread.threadId, msgs => {
+      setThreadMessages(msgs);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    });
+    return unsub;
+  }, [selectedThread]);
+
+  const handleSend = async () => {
+    if (!draft.trim() || !appUser || !school || !selectedThread || sending) return;
+    setSending(true);
+    try {
+      await sendMessage({
+        threadId: selectedThread.threadId,
+        schoolId: school.id,
+        childId: selectedThread.childId,
+        senderId: appUser.uid,
+        senderRole: "teacher",
+        text: draft.trim(),
+        read: false,
+      });
+      setDraft("");
+    } catch {
+      toast.error("Could not send message");
+    } finally {
+      setSending(false);
+    }
+  };
 
   const getUpdateForChild = (childId: string) =>
     updates.find(u => u.childId === childId);
@@ -530,6 +577,134 @@ export default function TeacherDashboard() {
             ))}
           </div>
         )}
+
+        {/* ── MESSAGES TAB ── */}
+        {tab === "messages" && (
+          selectedThread ? (
+            /* ── Thread view ── */
+            <div style={{ display: "flex", flexDirection: "column", height: "100%", position: "relative" }}>
+              {/* Thread header */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "12px 0 12px", borderBottom: "1px solid var(--border)",
+                position: "sticky", top: 0, background: "var(--surface)", zIndex: 1,
+              }}>
+                <button onClick={() => { setSelectedThread(null); setThreadMessages([]); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--brand)", padding: 0, display: "flex" }}>
+                  <ChevronLeft size={22} />
+                </button>
+                <div className="avatar" style={{ background: "var(--brand-light)", color: "var(--brand)", fontSize: 14 }}>
+                  {selectedThread.childName[0]}
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>{selectedThread.childName}</p>
+                  <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>Parent notification</p>
+                </div>
+              </div>
+
+              {/* Messages */}
+              <div style={{ flex: 1, overflowY: "auto", paddingBottom: 80, display: "flex", flexDirection: "column", gap: 8, paddingTop: 12 }}>
+                {threadMessages.length === 0 && (
+                  <div style={{ textAlign: "center", padding: "40px 16px" }}>
+                    <p style={{ fontSize: 32, margin: "0 0 8px" }}>💬</p>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: 15 }}>No messages yet</p>
+                    <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+                      Send {selectedThread.childName}&apos;s parents an update
+                    </p>
+                  </div>
+                )}
+                {threadMessages.map(m => (
+                  <div key={m.id} style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <div style={{
+                      maxWidth: "80%", background: "var(--brand)", color: "#fff",
+                      borderRadius: "16px 16px 4px 16px", padding: "10px 14px",
+                    }}>
+                      <p style={{ margin: 0, fontSize: 14, lineHeight: 1.4 }}>{m.text}</p>
+                      <p style={{ margin: "4px 0 0", fontSize: 11, opacity: 0.75, textAlign: "right" }}>
+                        {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {m.read && " · Seen ✓"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Compose */}
+              <div style={{
+                position: "fixed", bottom: "calc(64px + env(safe-area-inset-bottom))",
+                left: "50%", transform: "translateX(-50%)",
+                width: "100%", maxWidth: 430,
+                background: "var(--surface)", borderTop: "1px solid var(--border)",
+                padding: "10px 16px", display: "flex", gap: 8, alignItems: "flex-end",
+              }}>
+                <textarea
+                  value={draft}
+                  onChange={e => setDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                  placeholder="Type a notification…"
+                  rows={1}
+                  style={{
+                    flex: 1, resize: "none", border: "1.5px solid var(--border)",
+                    borderRadius: 10, padding: "10px 12px", fontSize: 14,
+                    outline: "none", fontFamily: "inherit", lineHeight: 1.4,
+                    maxHeight: 100, overflowY: "auto",
+                  }}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={!draft.trim() || sending}
+                  className="btn btn-primary"
+                  style={{ padding: "10px 14px", borderRadius: 10, flexShrink: 0 }}
+                >
+                  {sending ? <span className="spinner" style={{ width: 16, height: 16 }} /> : <Send size={16} />}
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* ── Inbox / contact list ── */
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <p style={{ margin: "0 0 4px", fontSize: 13, color: "var(--text-muted)" }}>
+                Send a notification to a child&apos;s parents
+              </p>
+              {children.filter(c => c.parentIds?.length > 0).length === 0 && (
+                <div className="card" style={{ textAlign: "center", padding: 32 }}>
+                  <p style={{ fontSize: 28, margin: "0 0 8px" }}>👨‍👩‍👧</p>
+                  <p style={{ margin: 0, fontWeight: 600 }}>No parents linked</p>
+                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
+                    Ask your school owner to link parents to children
+                  </p>
+                </div>
+              )}
+              {children.filter(c => c.parentIds?.length > 0).map(child => (
+                <button
+                  key={child.id}
+                  className="card"
+                  onClick={() => {
+                    const parentId = child.parentIds[0];
+                    const threadId = `${appUser!.uid}_${parentId}_${child.id}`;
+                    setSelectedThread({ childId: child.id, parentId, threadId, childName: `${child.firstName} ${child.lastName}` });
+                  }}
+                  style={{
+                    width: "100%", textAlign: "left", cursor: "pointer", border: "1px solid var(--border)",
+                    display: "flex", alignItems: "center", gap: 12,
+                  }}
+                >
+                  <div className="avatar" style={{ background: "var(--brand-light)", color: "var(--brand)", fontSize: 15 }}>
+                    {child.firstName[0]}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontWeight: 600, fontSize: 15 }}>{child.firstName} {child.lastName}</p>
+                    <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
+                      {child.parentIds.length} parent{child.parentIds.length !== 1 ? "s" : ""} linked
+                    </p>
+                  </div>
+                  <ChevronLeft size={16} style={{ transform: "rotate(180deg)", color: "var(--text-muted)", flexShrink: 0 }} />
+                </button>
+              ))}
+            </div>
+          )
+        )}
       </div>
 
       {/* Bottom nav */}
@@ -538,8 +713,12 @@ export default function TeacherDashboard() {
           { id: "checkin", Icon: Users, label: "Check-in" },
           { id: "moments", Icon: Camera, label: "Moments" },
           { id: "tasks", Icon: CheckSquare, label: "Tasks" },
+          { id: "messages", Icon: MessageSquare, label: "Messages" },
         ] as const).map(({ id, Icon, label }) => (
-          <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id as Tab)}>
+          <button key={id} className={tab === id ? "active" : ""} onClick={() => {
+            setTab(id as Tab);
+            if (id !== "messages") { setSelectedThread(null); setThreadMessages([]); }
+          }}>
             <Icon size={20} />
             {label}
           </button>
