@@ -118,6 +118,16 @@ export async function updateUser(uid: string, data: Partial<AppUser>): Promise<v
   await updateDoc(doc(db, "users", uid), data);
 }
 
+export async function getParentsForSchool(schoolId: string): Promise<AppUser[]> {
+  const q = query(
+    collection(db, "users"),
+    where("schoolId", "==", schoolId),
+    where("role", "==", "parent")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ ...d.data(), uid: d.id, createdAt: toDate(d.data().createdAt) } as AppUser));
+}
+
 export async function getAllUsers(): Promise<AppUser[]> {
   const snap = await getDocs(collection(db, "users"));
   return snap.docs.map(d => ({ ...d.data(), uid: d.id, createdAt: toDate(d.data().createdAt) } as AppUser));
@@ -389,6 +399,14 @@ export async function getInvoicesForSchoolPage(
   return pageFromSnapshot(snap.docs, pageSize, toInvoice);
 }
 
+export async function createInvoice(data: Omit<Invoice, "id" | "createdAt">): Promise<string> {
+  const ref = await addDoc(collection(db, "invoices"), {
+    ...data,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
 export async function updateInvoiceStatus(invoiceId: string, status: Invoice["status"], proofUrl?: string): Promise<void> {
   const update: Record<string, unknown> = { status };
   if (proofUrl) update.proofUrl = proofUrl;
@@ -446,8 +464,8 @@ export function subscribeToThread(
 }
 
 /**
- * Mark all messages in a thread that were NOT sent by `readerUid` as read: true.
- * Called when a user opens the chat tab.
+ * Mark all notifications in a thread that were NOT sent by `readerUid` as read.
+ * Called when a parent opens the notifications tab.
  */
 export async function markThreadMessagesRead(threadId: string, readerUid: string): Promise<void> {
   const q = query(

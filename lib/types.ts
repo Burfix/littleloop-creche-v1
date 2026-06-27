@@ -31,6 +31,7 @@ export interface AppUser {
   schoolId: string | null; // null for superadmin
   branchId?: string;       // for teachers
   childIds?: string[];     // for parents
+  phone?: string;
   avatarUrl?: string;
   fcmToken?: string;
   createdAt: string;

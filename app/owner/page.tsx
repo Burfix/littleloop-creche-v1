@@ -8,11 +8,13 @@ import {
   getChildrenForSchoolPage,
   getCockpitStats,
   getInvoicesForSchoolPage,
+  getParentsForSchool,
+  getSchool,
 } from "@/lib/db";
-import type { Child, CockpitStats, Invoice } from "@/lib/types";
+import type { AppUser, Child, CockpitStats, Invoice, School } from "@/lib/types";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import toast from "react-hot-toast";
-import { BarChart2, CreditCard, Settings, LogOut } from "lucide-react";
+import { BarChart2, CreditCard, Settings, LogOut, UserPlus, Baby, Users } from "lucide-react";
 import { AttendanceCard } from "./components/AttendanceCard";
 import { FinancialStats } from "./components/FinancialStats";
 import { BillingTab } from "./components/BillingTab";
@@ -20,8 +22,6 @@ import { SettingsTab } from "./components/SettingsTab";
 
 type Tab = "overview" | "billing" | "settings";
 
-// TODO(phase-3): set to true once WhatsApp/email Cloud Function is wired up
-const REMINDERS_ENABLED = false;
 
 export default function OwnerDashboard() {
   const { appUser, firebaseUser, signOut } = useAuth();
@@ -32,6 +32,8 @@ export default function OwnerDashboard() {
   const [stats, setStats] = useState<CockpitStats | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
+  const [ownerSchool, setOwnerSchool] = useState<School | null>(null);
+  const [parents, setParents] = useState<AppUser[]>([]);
   const [invoiceCursor, setInvoiceCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMoreInvoices, setHasMoreInvoices] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
@@ -49,16 +51,20 @@ export default function OwnerDashboard() {
       if (!schoolId) { if (!cancelled) setLoading(false); return; }
 
       try {
-        const [s, invoicePage] = await Promise.all([
+        const [resolvedSchool, s, invoicePage, schoolParents] = await Promise.all([
+          school?.id === schoolId ? Promise.resolve(school) : getSchool(schoolId),
           getCockpitStats(schoolId),
           getInvoicesForSchoolPage(schoolId),
+          getParentsForSchool(schoolId),
         ]);
         const childPage = await getChildrenForSchoolPage(schoolId, { includePendingErasure: true });
 
         if (cancelled) return;
+        setOwnerSchool(resolvedSchool);
         setStats(s);
         setInvoices(invoicePage.items);
         setChildren(childPage.items);
+        setParents(schoolParents);
         setInvoiceCursor(invoicePage.nextCursor);
         setHasMoreInvoices(invoicePage.hasMore);
       } finally {
@@ -123,6 +129,13 @@ export default function OwnerDashboard() {
     toast.success("Child data permanently erased");
   };
 
+  const handleChildAdded = (child: Child) => {
+    setChildren(prev => [child, ...prev]);
+    setStats(prev => prev ? { ...prev, totalChildren: prev.totalChildren + 1 } : prev);
+  };
+
+  const activeSchool = school ?? ownerSchool;
+
   if (loading || !appUser) {
     return <div className="page-loader"><div className="spinner" /></div>;
   }
@@ -137,7 +150,7 @@ export default function OwnerDashboard() {
       }}>
         <div>
           <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>Owner cockpit</p>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{school?.name}</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{activeSchool?.name ?? "School setup"}</h2>
         </div>
         <button onClick={handleSignOut}
           style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>
@@ -154,11 +167,34 @@ export default function OwnerDashboard() {
               checkedInToday={stats.checkedInToday}
               totalChildren={stats.totalChildren}
             />
-            <FinancialStats stats={stats} remindersEnabled={REMINDERS_ENABLED} />
-            {school && school.branches.length > 0 && (
+            <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              {[
+                { label: "Add child", Icon: Baby },
+                { label: "Invite teacher", Icon: UserPlus },
+                { label: "Invite parent", Icon: Users },
+              ].map(({ label, Icon }) => (
+                <button
+                  key={label}
+                  className="btn btn-secondary"
+                  style={{ flexDirection: "column", padding: "14px 8px", fontSize: 12 }}
+                  onClick={() => setTab("settings")}
+                >
+                  <Icon size={18} />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <FinancialStats
+              stats={stats}
+              invoices={invoices}
+              children={children}
+              parents={parents}
+              schoolName={activeSchool?.name ?? ""}
+            />
+            {activeSchool && activeSchool.branches.length > 0 && (
               <div className="card">
                 <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600 }}>Branches</h4>
-                {school.branches.map(b => (
+                {activeSchool.branches.map(b => (
                   <div key={b.id} style={{
                     display: "flex", justifyContent: "space-between", alignItems: "center",
                     padding: "8px 0", borderBottom: "1px solid var(--border)",
@@ -173,22 +209,27 @@ export default function OwnerDashboard() {
         )}
 
         {/* ── BILLING TAB ── */}
-        {tab === "billing" && (
+        {tab === "billing" && activeSchool && (
           <BillingTab
             invoices={invoices}
+            children={children}
+            parents={parents}
+            school={activeSchool}
             invoiceCursor={invoiceCursor}
             hasMoreInvoices={hasMoreInvoices}
             loadingInvoices={loadingInvoices}
             onLoadMore={loadMoreInvoices}
             onInvoiceUpdate={updated => setInvoices(prev => prev.map(i => i.id === updated.id ? updated : i))}
+            onInvoiceCreated={inv => setInvoices(prev => [inv, ...prev])}
           />
         )}
 
         {/* ── SETTINGS TAB ── */}
-        {tab === "settings" && school && (
+        {tab === "settings" && activeSchool && (
           <SettingsTab
-            school={school}
-            children={children}
+            school={activeSchool}
+            enrolledChildren={children}
+            onChildAdded={handleChildAdded}
             onRequestErasure={requestChildErasure}
             onPermanentErasure={permanentlyEraseChild}
             onSignOut={handleSignOut}
