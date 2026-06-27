@@ -20,6 +20,7 @@ import {
   QueryDocumentSnapshot,
   getCountFromServer,
   writeBatch,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type {
@@ -281,6 +282,43 @@ export async function getClassesForTeacher(teacherId: string): Promise<ClassRoom
   const q = query(collection(db, "classes"), where("teacherIds", "array-contains", teacherId));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ ...d.data(), id: d.id } as ClassRoom));
+}
+
+export async function createClass(data: Omit<ClassRoom, "id">): Promise<string> {
+  const ref = await addDoc(collection(db, "classes"), data);
+  return ref.id;
+}
+
+export async function updateClass(classId: string, data: Partial<Omit<ClassRoom, "id">>): Promise<void> {
+  await updateDoc(doc(db, "classes", classId), data);
+}
+
+export async function deleteClass(classId: string): Promise<void> {
+  await deleteDoc(doc(db, "classes", classId));
+}
+
+export async function getTeachersForSchool(schoolId: string): Promise<AppUser[]> {
+  const q = query(
+    collection(db, "users"),
+    where("schoolId", "==", schoolId),
+    where("role", "==", "teacher")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ ...d.data(), uid: d.id, createdAt: toDate(d.data().createdAt) } as AppUser));
+}
+
+export async function getDailyUpdatesForSchoolDate(schoolId: string, date: string): Promise<DailyUpdate[]> {
+  const q = query(
+    collection(db, "daily_updates"),
+    where("schoolId", "==", schoolId),
+    where("date", "==", date)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({
+    ...d.data(), id: d.id,
+    createdAt: toDate(d.data().createdAt),
+    updatedAt: toDate(d.data().updatedAt),
+  } as DailyUpdate));
 }
 
 // ─── Daily Updates ────────────────────────────────────────────────────────────

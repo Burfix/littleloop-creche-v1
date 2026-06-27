@@ -85,7 +85,7 @@ export function FinancialStats({ stats, invoices, children, parents, schoolName 
       </div>
 
       {(stats.photoConsentPending > 0 || stats.outstandingFamilies > 0) && (
-        <div className="card" style={{ borderLeft: "3px solid var(--warning)", background: "#fffbeb" }}>
+        <div className="card warning-card" style={{ borderLeft: "3px solid var(--warning)", background: "#fffbeb" }}>
           <p style={{ margin: "0 0 8px", fontWeight: 600, fontSize: 14, color: "#92400e" }}>Actions needed</p>
           {stats.photoConsentPending > 0 && (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -109,7 +109,7 @@ export function FinancialStats({ stats, invoices, children, parents, schoolName 
               Send WhatsApp reminders ({outstandingWithPhone.length})
             </button>
           ) : stats.outstandingFamilies > 0 ? (
-            <p style={{ margin: 0, fontSize: 12, color: "#92400e" }}>
+            <p style={{ margin: 0, fontSize: 12 }}>
               Add phone numbers to parent profiles to enable WhatsApp reminders.
             </p>
           ) : null}

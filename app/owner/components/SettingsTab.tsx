@@ -1,13 +1,15 @@
 "use client";
 
-import type { Child, School } from "@/lib/types";
+import type { Child, School, AppUser } from "@/lib/types";
 import { AddChildForm } from "./AddChildForm";
 import { InviteForm } from "./InviteForm";
 import { PrivacyErasurePanel } from "./PrivacyErasurePanel";
+import { ClassesSection } from "./ClassesSection";
 
 interface SettingsTabProps {
   school: School;
   enrolledChildren: Child[];
+  teachers: AppUser[];
   onChildAdded: (child: Child) => void;
   onRequestErasure: (child: Child) => Promise<void>;
   onPermanentErasure: (child: Child, confirmName: string) => Promise<void>;
@@ -17,6 +19,7 @@ interface SettingsTabProps {
 export function SettingsTab({
   school,
   enrolledChildren,
+  teachers,
   onChildAdded,
   onRequestErasure,
   onPermanentErasure,
@@ -70,6 +73,10 @@ export function SettingsTab({
           Create the child record first. A default branch and class will be created automatically if needed.
         </p>
         <AddChildForm schoolId={school.id} onChildAdded={onChildAdded} />
+      </section>
+
+      <section className="card">
+        <ClassesSection school={school} teachers={teachers} />
       </section>
 
       <section className="card">

@@ -10,12 +10,16 @@ import {
   getInvoicesForSchoolPage,
   getParentsForSchool,
   getSchool,
+  getTeachersForSchool,
+  getDailyUpdatesForSchoolDate,
+  getClassesForSchool,
 } from "@/lib/db";
-import type { AppUser, Child, CockpitStats, Invoice, School } from "@/lib/types";
+import type { AppUser, Child, ClassRoom, CockpitStats, DailyUpdate, Invoice, School } from "@/lib/types";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { BarChart2, CreditCard, Settings, LogOut, UserPlus, Baby, Users } from "lucide-react";
 import { AttendanceCard } from "./components/AttendanceCard";
+import { AttendanceReport } from "./components/AttendanceReport";
 import { FinancialStats } from "./components/FinancialStats";
 import { BillingTab } from "./components/BillingTab";
 import { SettingsTab } from "./components/SettingsTab";
@@ -34,6 +38,9 @@ export default function OwnerDashboard() {
   const [children, setChildren] = useState<Child[]>([]);
   const [ownerSchool, setOwnerSchool] = useState<School | null>(null);
   const [parents, setParents] = useState<AppUser[]>([]);
+  const [teachers, setTeachers] = useState<AppUser[]>([]);
+  const [classes, setClasses] = useState<ClassRoom[]>([]);
+  const [todayUpdates, setTodayUpdates] = useState<DailyUpdate[]>([]);
   const [invoiceCursor, setInvoiceCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMoreInvoices, setHasMoreInvoices] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
@@ -51,11 +58,15 @@ export default function OwnerDashboard() {
       if (!schoolId) { if (!cancelled) setLoading(false); return; }
 
       try {
-        const [resolvedSchool, s, invoicePage, schoolParents] = await Promise.all([
+        const today = new Date().toISOString().slice(0, 10);
+        const [resolvedSchool, s, invoicePage, schoolParents, schoolTeachers, schoolClasses, updates] = await Promise.all([
           school?.id === schoolId ? Promise.resolve(school) : getSchool(schoolId),
           getCockpitStats(schoolId),
           getInvoicesForSchoolPage(schoolId),
           getParentsForSchool(schoolId),
+          getTeachersForSchool(schoolId),
+          getClassesForSchool(schoolId),
+          getDailyUpdatesForSchoolDate(schoolId, today),
         ]);
         const childPage = await getChildrenForSchoolPage(schoolId, { includePendingErasure: true });
 
@@ -65,6 +76,9 @@ export default function OwnerDashboard() {
         setInvoices(invoicePage.items);
         setChildren(childPage.items);
         setParents(schoolParents);
+        setTeachers(schoolTeachers);
+        setClasses(schoolClasses);
+        setTodayUpdates(updates);
         setInvoiceCursor(invoicePage.nextCursor);
         setHasMoreInvoices(invoicePage.hasMore);
       } finally {
@@ -167,6 +181,11 @@ export default function OwnerDashboard() {
               checkedInToday={stats.checkedInToday}
               totalChildren={stats.totalChildren}
             />
+            <AttendanceReport
+              classes={classes}
+              children={children}
+              dailyUpdates={todayUpdates}
+            />
             <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
               {[
                 { label: "Add child", Icon: Baby },
@@ -229,6 +248,7 @@ export default function OwnerDashboard() {
           <SettingsTab
             school={activeSchool}
             enrolledChildren={children}
+            teachers={teachers}
             onChildAdded={handleChildAdded}
             onRequestErasure={requestChildErasure}
             onPermanentErasure={permanentlyEraseChild}
