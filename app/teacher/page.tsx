@@ -15,8 +15,8 @@ import { addMoment } from "@/lib/db";
 import type { ClassRoom, Child, DailyUpdate, Task, MoodEmoji } from "@/lib/types";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
-import { Users, Camera, CheckSquare, LogOut, MessageSquare, ChevronLeft, Send } from "lucide-react";
-import { sendMessage, subscribeToThread } from "@/lib/db";
+import { Users, Camera, CheckSquare, LogOut, MessageSquare, ChevronLeft, Send, CameraOff } from "lucide-react";
+import { sendMessage, subscribeToThread, getLastMessageForThread } from "@/lib/db";
 import type { Message } from "@/lib/types";
 
 type Tab = "checkin" | "moments" | "tasks" | "messages";
@@ -51,6 +51,7 @@ export default function TeacherDashboard() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [threadPreviews, setThreadPreviews] = useState<Record<string, Message | null>>({});
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -78,10 +79,32 @@ export default function TeacherDashboard() {
     if (!selectedThread) return;
     const unsub = subscribeToThread(selectedThread.threadId, msgs => {
       setThreadMessages(msgs);
+      // Update preview for this thread live
+      const last = msgs[msgs.length - 1] ?? null;
+      setThreadPreviews(prev => ({ ...prev, [selectedThread.threadId]: last }));
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
     });
     return unsub;
   }, [selectedThread]);
+
+  // Load thread previews (last message per child) when messages tab is opened
+  useEffect(() => {
+    if (tab !== "messages" || !appUser || selectedThread) return;
+    const contactChildren = children.filter(c => c.parentIds?.length > 0);
+    if (contactChildren.length === 0) return;
+
+    Promise.all(
+      contactChildren.map(child => {
+        const parentId = child.parentIds[0];
+        const threadId = `${appUser.uid}_${parentId}_${child.id}`;
+        return getLastMessageForThread(threadId).then(msg => ({ threadId, msg }));
+      })
+    ).then(results => {
+      const map: Record<string, Message | null> = {};
+      results.forEach(({ threadId, msg }) => { map[threadId] = msg; });
+      setThreadPreviews(map);
+    }).catch(() => null);
+  }, [tab, children, appUser, selectedThread]);
 
   const handleSend = async () => {
     if (!draft.trim() || !appUser || !school || !selectedThread || sending) return;
@@ -353,9 +376,24 @@ export default function TeacherDashboard() {
                       {child.firstName[0]}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <p style={{ margin: 0, fontWeight: 600, fontSize: 15 }}>
-                        {child.firstName} {child.lastName}
-                      </p>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: 15 }}>
+                          {child.firstName} {child.lastName}
+                        </p>
+                        {!child.photoConsent && (
+                          <span
+                            title="No photo consent"
+                            style={{
+                              display: "inline-flex", alignItems: "center",
+                              background: "#fffbeb", color: "#92400e",
+                              borderRadius: 99, padding: "1px 6px", gap: 3, fontSize: 10, fontWeight: 700,
+                            }}
+                          >
+                            <CameraOff size={9} />
+                            No consent
+                          </span>
+                        )}
+                      </div>
                       {upd?.checkInTime && (
                         <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
                           In {format(new Date(upd.checkInTime), "HH:mm")}
@@ -507,7 +545,8 @@ export default function TeacherDashboard() {
             </div>
 
             {selectedMomentChild && !selectedMomentChild.photoConsent && (
-              <div className="card" style={{ borderLeft: "3px solid var(--warning)", background: "#fffbeb" }}>
+              <div className="card warning-card" style={{ borderLeft: "3px solid var(--warning)", background: "#fffbeb", display: "flex", alignItems: "center", gap: 8 }}>
+                <CameraOff size={16} style={{ color: "#92400e", flexShrink: 0 }} />
                 <p style={{ margin: 0, fontSize: 13, color: "#92400e" }}>
                   Photo sharing is disabled for {selectedMomentChild.firstName} until consent is recorded.
                 </p>
@@ -690,32 +729,49 @@ export default function TeacherDashboard() {
                   </p>
                 </div>
               )}
-              {children.filter(c => c.parentIds?.length > 0).map(child => (
-                <button
-                  key={child.id}
-                  className="card"
-                  onClick={() => {
-                    const parentId = child.parentIds[0];
-                    const threadId = `${appUser!.uid}_${parentId}_${child.id}`;
-                    setSelectedThread({ childId: child.id, parentId, threadId, childName: `${child.firstName} ${child.lastName}` });
-                  }}
-                  style={{
-                    width: "100%", textAlign: "left", cursor: "pointer", border: "1px solid var(--border)",
-                    display: "flex", alignItems: "center", gap: 12,
-                  }}
-                >
-                  <div className="avatar" style={{ background: "var(--brand-light)", color: "var(--brand)", fontSize: 15 }}>
-                    {child.firstName[0]}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontWeight: 600, fontSize: 15 }}>{child.firstName} {child.lastName}</p>
-                    <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
-                      {child.parentIds.length} parent{child.parentIds.length !== 1 ? "s" : ""} linked
-                    </p>
-                  </div>
-                  <ChevronLeft size={16} style={{ transform: "rotate(180deg)", color: "var(--text-muted)", flexShrink: 0 }} />
-                </button>
-              ))}
+              {children.filter(c => c.parentIds?.length > 0).map(child => {
+                const parentId = child.parentIds[0];
+                const threadId = `${appUser!.uid}_${parentId}_${child.id}`;
+                const preview = threadPreviews[threadId];
+                const isSeen = preview?.senderRole === "teacher" && preview?.read;
+                const previewText = preview
+                  ? (preview.text.length > 48 ? preview.text.slice(0, 45) + "…" : preview.text)
+                  : `${child.parentIds.length} parent${child.parentIds.length !== 1 ? "s" : ""} linked`;
+
+                return (
+                  <button
+                    key={child.id}
+                    className="card"
+                    onClick={() => {
+                      setSelectedThread({ childId: child.id, parentId, threadId, childName: `${child.firstName} ${child.lastName}` });
+                    }}
+                    style={{
+                      width: "100%", textAlign: "left", cursor: "pointer", border: "1px solid var(--border)",
+                      display: "flex", alignItems: "center", gap: 12,
+                    }}
+                  >
+                    <div className="avatar" style={{ background: "var(--brand-light)", color: "var(--brand)", fontSize: 15 }}>
+                      {child.firstName[0]}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontWeight: 600, fontSize: 15 }}>{child.firstName} {child.lastName}</p>
+                      <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {previewText}
+                      </p>
+                      {preview && (
+                        <p style={{ margin: "2px 0 0", fontSize: 11, color: isSeen ? "var(--brand)" : "var(--text-muted)" }}>
+                          {preview.senderRole === "teacher"
+                            ? (isSeen ? "✓ Seen" : "Delivered")
+                            : "Parent replied"}
+                          {" · "}
+                          {new Date(preview.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      )}
+                    </div>
+                    <ChevronLeft size={16} style={{ transform: "rotate(180deg)", color: "var(--text-muted)", flexShrink: 0 }} />
+                  </button>
+                );
+              })}
             </div>
           )
         )}

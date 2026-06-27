@@ -520,6 +520,19 @@ export async function markThreadMessagesRead(threadId: string, readerUid: string
   await batch.commit();
 }
 
+export async function getLastMessageForThread(threadId: string): Promise<Message | null> {
+  const q = query(
+    collection(db, "messages"),
+    where("threadId", "==", threadId),
+    orderBy("createdAt", "desc"),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { ...d.data(), id: d.id, createdAt: toDate(d.data().createdAt) } as Message;
+}
+
 export async function sendMessage(data: Omit<Message, "id" | "createdAt">): Promise<void> {
   const threadChildId = data.threadId.split("_").at(-1);
   await addDoc(collection(db, "messages"), {
