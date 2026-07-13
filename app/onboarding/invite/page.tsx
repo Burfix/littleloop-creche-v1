@@ -87,7 +87,7 @@ export default function OnboardingInvitePage() {
       )}
 
       <div style={{ marginTop: 24 }}>
-        <button className="btn btn-primary" style={{ width: "100%" }} onClick={() => router.push("/owner")}>
+        <button className="btn btn-primary" style={{ width: "100%" }} onClick={() => router.push("/onboarding/billing")}>
           Continue
         </button>
         <button

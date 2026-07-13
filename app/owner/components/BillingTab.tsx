@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { format, addDays } from "date-fns";
-import { updateInvoiceStatus, createInvoice } from "@/lib/db";
+import { format } from "date-fns";
+import { updateInvoiceStatus } from "@/lib/db";
 import type { Invoice, Child, AppUser, School } from "@/lib/types";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import { MessageCircle, Plus, X } from "lucide-react";
+import { CreateInvoiceForm } from "./CreateInvoiceForm";
 
 interface BillingTabProps {
   invoices: Invoice[];
@@ -52,14 +53,6 @@ export function BillingTab({
   onLoadMore, onInvoiceUpdate, onInvoiceCreated,
 }: BillingTabProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({
-    childId: children[0]?.id ?? "",
-    description: "Monthly school fees",
-    amountCents: "",
-    month: new Date().toISOString().slice(0, 7),
-    dueDate: format(addDays(new Date(), 7), "yyyy-MM-dd"),
-  });
 
   const childMap = Object.fromEntries(children.map(c => [c.id, c]));
   const parentMap = Object.fromEntries(parents.map(p => [p.uid, p]));
@@ -67,46 +60,6 @@ export function BillingTab({
   const currentMonth = new Date().toISOString().slice(0, 7);
   const currentMonthInvoices = invoices.filter(i => i.month === currentMonth);
   const olderInvoices = invoices.filter(i => i.month !== currentMonth);
-
-  const handleCreate = async () => {
-    const amount = Math.round(parseFloat(form.amountCents) * 100);
-    if (!form.childId) { toast.error("Select a child"); return; }
-    if (isNaN(amount) || amount <= 0) { toast.error("Enter a valid amount"); return; }
-    const child = childMap[form.childId];
-    if (!child) { toast.error("Child not found"); return; }
-    const parentId = child.parentIds?.[0];
-    if (!parentId) { toast.error("This child has no linked parent — invite the parent first"); return; }
-
-    setCreating(true);
-    try {
-      const id = await createInvoice({
-        schoolId: school.id,
-        branchId: child.classId ?? "",
-        parentId,
-        childId: form.childId,
-        month: form.month,
-        amountCents: amount,
-        status: "outstanding",
-        dueDate: form.dueDate,
-        lineItems: [{ description: form.description, amountCents: amount }],
-      });
-      const now = new Date().toISOString();
-      onInvoiceCreated({
-        id, schoolId: school.id, branchId: child.classId ?? "",
-        parentId, childId: form.childId, month: form.month,
-        amountCents: amount, status: "outstanding",
-        dueDate: form.dueDate, createdAt: now,
-        lineItems: [{ description: form.description, amountCents: amount }],
-      });
-      toast.success("Invoice created");
-      setShowCreateForm(false);
-      setForm(f => ({ ...f, amountCents: "", description: "Monthly school fees" }));
-    } catch {
-      toast.error("Could not create invoice");
-    } finally {
-      setCreating(false);
-    }
-  };
 
   const renderInvoice = (inv: Invoice) => {
     const child = childMap[inv.childId];
@@ -206,60 +159,11 @@ export function BillingTab({
 
       {/* Create form */}
       {showCreateForm && (
-        <div className="card" style={{ display: "flex", flexDirection: "column", gap: 10, background: "var(--surface-2)" }}>
-          <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>New invoice</p>
-          <select
-            className="input"
-            value={form.childId}
-            onChange={e => setForm(f => ({ ...f, childId: e.target.value }))}
-          >
-            <option value="">Select child…</option>
-            {children.map(c => (
-              <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
-            ))}
-          </select>
-          <input
-            className="input"
-            placeholder="Description e.g. Monthly school fees"
-            value={form.description}
-            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-          />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Amount (R)</label>
-              <input
-                className="input"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="e.g. 2500"
-                value={form.amountCents}
-                onChange={e => setForm(f => ({ ...f, amountCents: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Month</label>
-              <input
-                className="input"
-                type="month"
-                value={form.month}
-                onChange={e => setForm(f => ({ ...f, month: e.target.value }))}
-              />
-            </div>
-          </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>Due date</label>
-            <input
-              className="input"
-              type="date"
-              value={form.dueDate}
-              onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
-            />
-          </div>
-          <button className="btn btn-primary" style={{ width: "100%" }} onClick={handleCreate} disabled={creating}>
-            {creating ? <span className="spinner" /> : "Create invoice"}
-          </button>
-        </div>
+        <CreateInvoiceForm
+          schoolId={school.id}
+          childRecords={children}
+          onInvoiceCreated={inv => { onInvoiceCreated(inv); setShowCreateForm(false); }}
+        />
       )}
 
       {currentMonthInvoices.length === 0 && !showCreateForm && (
