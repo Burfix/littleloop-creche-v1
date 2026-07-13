@@ -14,6 +14,7 @@ import {
   getDailyUpdatesForSchoolDate,
   getClassesForSchool,
 } from "@/lib/db";
+import { getOnboardingStatus, type OnboardingStatus } from "@/lib/onboarding";
 import type { AppUser, Child, ClassRoom, CockpitStats, DailyUpdate, Invoice, School } from "@/lib/types";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import toast from "react-hot-toast";
@@ -23,6 +24,7 @@ import { AttendanceReport } from "./components/AttendanceReport";
 import { FinancialStats } from "./components/FinancialStats";
 import { BillingTab } from "./components/BillingTab";
 import { SettingsTab } from "./components/SettingsTab";
+import { OnboardingChecklist } from "./components/OnboardingChecklist";
 
 type Tab = "overview" | "billing" | "settings";
 
@@ -41,6 +43,7 @@ export default function OwnerDashboard() {
   const [teachers, setTeachers] = useState<AppUser[]>([]);
   const [classes, setClasses] = useState<ClassRoom[]>([]);
   const [todayUpdates, setTodayUpdates] = useState<DailyUpdate[]>([]);
+  const [onboarding, setOnboarding] = useState<OnboardingStatus | null>(null);
   const [invoiceCursor, setInvoiceCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMoreInvoices, setHasMoreInvoices] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
@@ -68,7 +71,10 @@ export default function OwnerDashboard() {
           getClassesForSchool(schoolId),
           getDailyUpdatesForSchoolDate(schoolId, today),
         ]);
-        const childPage = await getChildrenForSchoolPage(schoolId, { includePendingErasure: true });
+        const [childPage, onboardingStatus] = await Promise.all([
+          getChildrenForSchoolPage(schoolId, { includePendingErasure: true }),
+          getOnboardingStatus(schoolId, resolvedSchool),
+        ]);
 
         if (cancelled) return;
         setOwnerSchool(resolvedSchool);
@@ -79,6 +85,7 @@ export default function OwnerDashboard() {
         setTeachers(schoolTeachers);
         setClasses(schoolClasses);
         setTodayUpdates(updates);
+        setOnboarding(onboardingStatus);
         setInvoiceCursor(invoicePage.nextCursor);
         setHasMoreInvoices(invoicePage.hasMore);
       } finally {
@@ -146,6 +153,25 @@ export default function OwnerDashboard() {
   const handleChildAdded = (child: Child) => {
     setChildren(prev => [child, ...prev]);
     setStats(prev => prev ? { ...prev, totalChildren: prev.totalChildren + 1 } : prev);
+    // Optimistically mark the "firstChild" onboarding step done, same pattern
+    // as the stats update above. Other steps (classes, invites, billing) are
+    // set inside SettingsTab/BillingTab today and aren't wired back to this
+    // state yet — they'll show correctly on next visit to this page, since
+    // getOnboardingStatus() always re-derives from real data rather than a
+    // stored pointer. Follow-up: thread the same optimistic-update callback
+    // pattern through those actions too.
+    setOnboarding(prev => {
+      if (!prev) return prev;
+      const steps = prev.steps.map(s => s.key === "firstChild" ? { ...s, done: true } : s);
+      const completedCount = steps.filter(s => s.done).length;
+      return {
+        steps,
+        completedCount,
+        totalCount: steps.length,
+        isComplete: completedCount === steps.length,
+        nextIncomplete: steps.find(s => !s.done) ?? null,
+      };
+    });
   };
 
   const activeSchool = school ?? ownerSchool;
@@ -175,7 +201,14 @@ export default function OwnerDashboard() {
       <div className="page-content" style={{ padding: "16px 20px" }}>
 
         {/* ── OVERVIEW TAB ── */}
-        {tab === "overview" && stats && (
+        {tab === "overview" && stats && onboarding && !onboarding.isComplete && (
+          <OnboardingChecklist
+            schoolName={activeSchool?.name ?? "your school"}
+            status={onboarding}
+            onStepClick={(targetTab) => setTab(targetTab)}
+          />
+        )}
+        {tab === "overview" && stats && onboarding?.isComplete && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <AttendanceCard
               checkedInToday={stats.checkedInToday}
