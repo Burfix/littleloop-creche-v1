@@ -50,6 +50,13 @@ export function SchoolProvider({
           document.documentElement.style.setProperty("--brand", s.primaryColor);
         }
       })
+      .catch((err) => {
+        // Anonymous/cross-tenant reads are correctly rejected by Firestore
+        // rules. Don't let that reject propagate as an unhandled promise
+        // rejection — fall back to no branding rather than crashing the tree.
+        console.error("School branding lookup failed:", err);
+        setSchool(null);
+      })
       .finally(() => setLoading(false));
   }, [initialSchool, initialSlug]);
 

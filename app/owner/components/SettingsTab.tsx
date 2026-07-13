@@ -52,7 +52,7 @@ export function SettingsTab({
         </div>
       </div>
 
-      {school.branches.length > 0 && (
+      {(school.branches?.length ?? 0) > 0 && (
         <div className="card">
           <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600 }}>Branches</h4>
           {school.branches.map(b => (

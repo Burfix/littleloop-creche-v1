@@ -135,19 +135,30 @@ export async function getAllUsers(): Promise<AppUser[]> {
 }
 
 // ─── Schools ─────────────────────────────────────────────────────────────────
+// Firestore has no schema enforcement — a document can be missing fields the
+// School type declares as required (e.g. `branches`), especially on records
+// created before a field existed or edited by hand. Normalize at the read
+// boundary so nothing downstream has to defensively guess about shape.
+export function normalizeSchool(id: string, d: DocumentData): School {
+  return {
+    ...d,
+    id,
+    branches: Array.isArray(d.branches) ? d.branches : [],
+    createdAt: toDate(d.createdAt),
+  } as School;
+}
+
 export async function getSchool(schoolId: string): Promise<School | null> {
   const snap = await getDoc(doc(db, "schools", schoolId));
   if (!snap.exists()) return null;
-  const d = snap.data();
-  return { ...d, id: snap.id, createdAt: toDate(d.createdAt) } as School;
+  return normalizeSchool(snap.id, snap.data());
 }
 
 export async function getSchoolBySlug(slug: string): Promise<School | null> {
   const q = query(collection(db, "schools"), where("slug", "==", slug), limit(1));
   const snap = await getDocs(q);
   if (snap.empty) return null;
-  const d = snap.docs[0].data();
-  return { ...d, id: snap.docs[0].id, createdAt: toDate(d.createdAt) } as School;
+  return normalizeSchool(snap.docs[0].id, snap.docs[0].data());
 }
 
 export async function getAllSchools(): Promise<School[]> {

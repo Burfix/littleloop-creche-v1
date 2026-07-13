@@ -25,6 +25,7 @@ export async function getSchoolBySlugServer(slug: string): Promise<School | null
     return {
       ...data,
       id: doc.id,
+      branches: Array.isArray(data.branches) ? data.branches : [],
       createdAt: toIsoString(data.createdAt),
     } as School;
   } catch (err) {
