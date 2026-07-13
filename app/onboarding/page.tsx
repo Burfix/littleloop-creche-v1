@@ -3,16 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useSchool } from "@/lib/school-context";
+import { updateUser } from "@/lib/db";
 import { Sprout } from "lucide-react";
 
 // Screen 1 of the redesigned onboarding flow (see
-// LittleLoop-Onboarding-Redesign-Spec.docx). This is a proof-of-concept for
-// the new visual pattern only — large single headline, one subhead, one
-// primary CTA, no scrolling. It is not yet wired into the sign-in redirect
-// (app/page.tsx still sends every owner straight to /owner); a new owner
-// only reaches this screen by navigating here directly today. Once the
-// remaining step screens exist, app/page.tsx's redirect map should send
-// owners with an incomplete OnboardingStatus here first.
+// LittleLoop-Onboarding-Redesign-Spec.docx) — large single headline, one
+// subhead, one primary CTA, no scrolling. app/page.tsx routes new owners
+// here automatically the first time (owners with an already-complete
+// school, or who've already seen this screen, skip straight to /owner).
 export default function OnboardingWelcomePage() {
   const { appUser } = useAuth();
   const { school } = useSchool();
@@ -20,6 +18,13 @@ export default function OnboardingWelcomePage() {
 
   const firstName = appUser?.displayName?.split(" ")[0] ?? "there";
   const schoolName = school?.name ?? "your school";
+
+  const proceed = () => {
+    // Fire-and-forget: if this write fails, the owner just sees Welcome
+    // once more next login — not worth blocking navigation over.
+    if (appUser) void updateUser(appUser.uid, { hasSeenOnboardingWelcome: true });
+    router.push("/owner");
+  };
 
   return (
     <div className="app-shell" style={{ justifyContent: "center", padding: "32px 24px" }}>
@@ -56,12 +61,12 @@ export default function OnboardingWelcomePage() {
       </p>
 
       <div style={{ marginTop: "auto", paddingTop: 40 }}>
-        <button className="btn btn-primary" style={{ width: "100%" }} onClick={() => router.push("/owner")}>
+        <button className="btn btn-primary" style={{ width: "100%" }} onClick={proceed}>
           Get started
         </button>
         <button
           style={{ width: "100%", background: "none", border: "none", color: "var(--text-muted)", fontSize: 13, marginTop: 8, padding: "10px 0" }}
-          onClick={() => router.push("/owner")}
+          onClick={proceed}
         >
           I&apos;ll do this later
         </button>

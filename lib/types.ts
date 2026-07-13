@@ -35,6 +35,7 @@ export interface AppUser {
   avatarUrl?: string;
   fcmToken?: string;
   createdAt: string;
+  hasSeenOnboardingWelcome?: boolean; // owners only — gates the one-time /onboarding landing
 }
 
 // ─── Children ────────────────────────────────────────────────────────────────
