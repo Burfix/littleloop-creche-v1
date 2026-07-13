@@ -41,6 +41,25 @@ async function countWhere(collectionName: string, schoolId: string, extra?: [str
   return snap.data().count;
 }
 
+// Shared reducer for optimistic client-side updates — every action that
+// completes a step (add child, create class, send an invite, create an
+// invoice) calls this instead of re-deriving completedCount/isComplete/
+// nextIncomplete by hand at each call site. The next real load still
+// re-derives from actual data via getOnboardingStatus(), so a failed or
+// out-of-band change can never leave the checklist stuck on a false
+// positive for more than one page visit.
+export function markStepDone(status: OnboardingStatus, key: OnboardingStepKey): OnboardingStatus {
+  const steps = status.steps.map(s => s.key === key ? { ...s, done: true } : s);
+  const completedCount = steps.filter(s => s.done).length;
+  return {
+    steps,
+    completedCount,
+    totalCount: steps.length,
+    isComplete: completedCount === steps.length,
+    nextIncomplete: steps.find(s => !s.done) ?? null,
+  };
+}
+
 export async function getOnboardingStatus(schoolId: string, school: School | null): Promise<OnboardingStatus> {
   const [childCount, classCount, teacherCount, parentCount, invoiceCount] = await Promise.all([
     countWhere("children", schoolId),

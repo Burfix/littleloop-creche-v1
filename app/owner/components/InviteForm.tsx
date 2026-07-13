@@ -9,9 +9,10 @@ interface InviteFormProps {
   schoolId: string;
   schoolSlug: string;
   childRecords: Child[];
+  onInvited?: (role: "teacher" | "parent") => void;
 }
 
-export function InviteForm({ schoolId, schoolSlug, childRecords }: InviteFormProps) {
+export function InviteForm({ schoolId, schoolSlug, childRecords, onInvited }: InviteFormProps) {
   const { firebaseUser } = useAuth();
   const [form, setForm] = React.useState({ email: "", displayName: "", role: "teacher", phone: "", childIds: [] as string[] });
   const [saving, setSaving] = React.useState(false);
@@ -39,6 +40,7 @@ export function InviteForm({ schoolId, schoolSlug, childRecords }: InviteFormPro
       if (!res.ok) throw new Error(data.error);
       setSent(true);
       toast.success("Invite email sent!");
+      onInvited?.(form.role === "parent" ? "parent" : "teacher");
       setForm({ email: "", displayName: "", role: "teacher", phone: "", childIds: [] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed");

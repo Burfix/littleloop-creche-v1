@@ -161,6 +161,18 @@ export async function getSchoolBySlug(slug: string): Promise<School | null> {
   return normalizeSchool(snap.docs[0].id, snap.docs[0].data());
 }
 
+// Owners may update their own school doc directly (firestore.rules:
+// isOwnerOf(schoolId)) — used by the School setup onboarding step to let an
+// owner confirm/change the name and subdomain slug before going live.
+// Callers are responsible for checking slug uniqueness first (see
+// getSchoolBySlug) since Firestore has no unique-constraint support.
+export async function updateSchoolDetails(
+  schoolId: string,
+  data: { name?: string; slug?: string }
+): Promise<void> {
+  await updateDoc(doc(db, "schools", schoolId), data);
+}
+
 export async function getAllSchools(): Promise<School[]> {
   const snap = await getDocs(collection(db, "schools"));
   return snap.docs.map(d => ({ ...d.data(), id: d.id, createdAt: toDate(d.data().createdAt) } as School));
