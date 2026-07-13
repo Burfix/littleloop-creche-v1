@@ -1,6 +1,6 @@
 "use client";
 
-import type { Child, School, AppUser } from "@/lib/types";
+import type { Child, ClassRoom, School, AppUser } from "@/lib/types";
 import { AddChildForm } from "./AddChildForm";
 import { InviteForm } from "./InviteForm";
 import { PrivacyErasurePanel } from "./PrivacyErasurePanel";
@@ -11,6 +11,8 @@ interface SettingsTabProps {
   enrolledChildren: Child[];
   teachers: AppUser[];
   onChildAdded: (child: Child) => void;
+  onClassesChanged?: (classes: ClassRoom[]) => void;
+  onInvited?: (role: "teacher" | "parent") => void;
   onRequestErasure: (child: Child) => Promise<void>;
   onPermanentErasure: (child: Child, confirmName: string) => Promise<void>;
   onSignOut: () => void;
@@ -21,6 +23,8 @@ export function SettingsTab({
   enrolledChildren,
   teachers,
   onChildAdded,
+  onClassesChanged,
+  onInvited,
   onRequestErasure,
   onPermanentErasure,
   onSignOut,
@@ -76,7 +80,7 @@ export function SettingsTab({
       </section>
 
       <section className="card">
-        <ClassesSection school={school} teachers={teachers} />
+        <ClassesSection school={school} teachers={teachers} onClassesChange={onClassesChanged} />
       </section>
 
       <section className="card">
@@ -84,7 +88,7 @@ export function SettingsTab({
         <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--text-muted)" }}>
           Parents can be linked to one or more children during invite.
         </p>
-        <InviteForm schoolId={school.id} schoolSlug={school.slug} childRecords={enrolledChildren} />
+        <InviteForm schoolId={school.id} schoolSlug={school.slug} childRecords={enrolledChildren} onInvited={onInvited} />
       </section>
 
       <PrivacyErasurePanel

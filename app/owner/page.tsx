@@ -14,7 +14,7 @@ import {
   getDailyUpdatesForSchoolDate,
   getClassesForSchool,
 } from "@/lib/db";
-import { getOnboardingStatus, type OnboardingStatus } from "@/lib/onboarding";
+import { getOnboardingStatus, markStepDone, type OnboardingStatus } from "@/lib/onboarding";
 import type { AppUser, Child, ClassRoom, CockpitStats, DailyUpdate, Invoice, School } from "@/lib/types";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import toast from "react-hot-toast";
@@ -153,25 +153,22 @@ export default function OwnerDashboard() {
   const handleChildAdded = (child: Child) => {
     setChildren(prev => [child, ...prev]);
     setStats(prev => prev ? { ...prev, totalChildren: prev.totalChildren + 1 } : prev);
-    // Optimistically mark the "firstChild" onboarding step done, same pattern
-    // as the stats update above. Other steps (classes, invites, billing) are
-    // set inside SettingsTab/BillingTab today and aren't wired back to this
-    // state yet — they'll show correctly on next visit to this page, since
-    // getOnboardingStatus() always re-derives from real data rather than a
-    // stored pointer. Follow-up: thread the same optimistic-update callback
-    // pattern through those actions too.
-    setOnboarding(prev => {
-      if (!prev) return prev;
-      const steps = prev.steps.map(s => s.key === "firstChild" ? { ...s, done: true } : s);
-      const completedCount = steps.filter(s => s.done).length;
-      return {
-        steps,
-        completedCount,
-        totalCount: steps.length,
-        isComplete: completedCount === steps.length,
-        nextIncomplete: steps.find(s => !s.done) ?? null,
-      };
-    });
+    setOnboarding(prev => prev ? markStepDone(prev, "firstChild") : prev);
+  };
+
+  // ClassesSection reports its full class list on every load and every
+  // change (create/update/delete), so this both keeps this page's `classes`
+  // state fresh (previously it only reflected the initial page load) and
+  // marks the "classes" onboarding step done the moment one exists.
+  const handleClassesChanged = (updatedClasses: ClassRoom[]) => {
+    setClasses(updatedClasses);
+    if (updatedClasses.length > 0) {
+      setOnboarding(prev => prev ? markStepDone(prev, "classes") : prev);
+    }
+  };
+
+  const handleInvited = (role: "teacher" | "parent") => {
+    setOnboarding(prev => prev ? markStepDone(prev, role === "parent" ? "parents" : "teachers") : prev);
   };
 
   const activeSchool = school ?? ownerSchool;
@@ -272,7 +269,10 @@ export default function OwnerDashboard() {
             loadingInvoices={loadingInvoices}
             onLoadMore={loadMoreInvoices}
             onInvoiceUpdate={updated => setInvoices(prev => prev.map(i => i.id === updated.id ? updated : i))}
-            onInvoiceCreated={inv => setInvoices(prev => [inv, ...prev])}
+            onInvoiceCreated={inv => {
+              setInvoices(prev => [inv, ...prev]);
+              setOnboarding(prev => prev ? markStepDone(prev, "billing") : prev);
+            }}
           />
         )}
 
@@ -283,6 +283,8 @@ export default function OwnerDashboard() {
             enrolledChildren={children}
             teachers={teachers}
             onChildAdded={handleChildAdded}
+            onClassesChanged={handleClassesChanged}
+            onInvited={handleInvited}
             onRequestErasure={requestChildErasure}
             onPermanentErasure={permanentlyEraseChild}
             onSignOut={handleSignOut}
