@@ -17,10 +17,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [resetMode, setResetMode] = useState(false);
 
-  // If already logged in, bounce to role page
+  // If already logged in, bounce to role page. Owners route through "/" —
+  // app/page.tsx decides between /onboarding (first login, incomplete
+  // setup) and /owner, so that decision lives in exactly one place.
   if (appUser) {
-    const dest = { parent: "/parent", teacher: "/teacher", owner: "/owner", superadmin: "/admin" }[appUser.role] ?? "/";
-    router.replace(dest);
+    const routes: Record<string, string> = { parent: "/parent", teacher: "/teacher", superadmin: "/admin" };
+    router.replace(routes[appUser.role] ?? "/");
     return null;
   }
 
