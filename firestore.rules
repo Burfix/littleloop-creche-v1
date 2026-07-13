@@ -142,6 +142,18 @@ service cloud.firestore {
       allow delete: if isOwnerOf(resource.data.schoolId) || isSuperAdmin();
     }
 
+    // ── School Launch ────────────────────────────────────────────
+    // Doc id == schoolId. Specialist assignment, payment status, sessions
+    // and target go-live date are set by the LittleLoop implementation
+    // team, not by the school — owners get read-only access so the launch
+    // workspace UI can display it. No school-writable fields yet; revisit
+    // if/when owners need to self-serve any part of this (e.g. uploading
+    // an enrolment file directly into this doc rather than via /children).
+    match /schoolLaunches/{schoolId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || isOwnerOf(schoolId));
+      allow create, update, delete: if isSuperAdmin();
+    }
+
     // ── Messages ─────────────────────────────────────────────────
     // threadId format: {teacherId}_{parentId}_{childId}
     // Only the two participants in the thread can read it.

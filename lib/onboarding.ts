@@ -34,7 +34,10 @@ export interface OnboardingStatus {
   nextIncomplete: OnboardingStep | null;
 }
 
-async function countWhere(collectionName: string, schoolId: string, extra?: [string, string]): Promise<number> {
+// Exported so lib/school-launch.ts can reuse the exact same counting logic
+// rather than re-implementing it — both modules derive step/task completion
+// from the same underlying data-presence signals.
+export async function countWhere(collectionName: string, schoolId: string, extra?: [string, string]): Promise<number> {
   const constraints = [where("schoolId", "==", schoolId)];
   if (extra) constraints.push(where(extra[0], "==", extra[1]));
   const snap = await getCountFromServer(query(collection(db, collectionName), ...constraints));
