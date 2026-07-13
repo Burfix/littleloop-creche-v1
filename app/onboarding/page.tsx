@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useSchool } from "@/lib/school-context";
 import { updateUser } from "@/lib/db";
 import { Sprout } from "lucide-react";
+import { OnboardingProgressBar } from "./components/OnboardingProgressBar";
 
 // Screen 1 of the redesigned onboarding flow (see
 // LittleLoop-Onboarding-Redesign-Spec.docx) — large single headline, one
@@ -19,28 +20,25 @@ export default function OnboardingWelcomePage() {
   const firstName = appUser?.displayName?.split(" ")[0] ?? "there";
   const schoolName = school?.name ?? "your school";
 
-  const proceed = () => {
+  const markSeen = () => {
     // Fire-and-forget: if this write fails, the owner just sees Welcome
     // once more next login — not worth blocking navigation over.
     if (appUser) void updateUser(appUser.uid, { hasSeenOnboardingWelcome: true });
+  };
+
+  const startSetup = () => {
+    markSeen();
+    router.push("/onboarding/school-setup");
+  };
+
+  const skipToDashboard = () => {
+    markSeen();
     router.push("/owner");
   };
 
   return (
     <div className="app-shell" style={{ justifyContent: "center", padding: "32px 24px" }}>
-      <div style={{ display: "flex", gap: 6, marginBottom: 40 }}>
-        {Array.from({ length: 7 }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              height: 4,
-              flex: 1,
-              borderRadius: 2,
-              background: i === 0 ? "var(--brand)" : "var(--border)",
-            }}
-          />
-        ))}
-      </div>
+      <OnboardingProgressBar step={1} />
 
       <div
         style={{
@@ -61,12 +59,12 @@ export default function OnboardingWelcomePage() {
       </p>
 
       <div style={{ marginTop: "auto", paddingTop: 40 }}>
-        <button className="btn btn-primary" style={{ width: "100%" }} onClick={proceed}>
+        <button className="btn btn-primary" style={{ width: "100%" }} onClick={startSetup}>
           Get started
         </button>
         <button
           style={{ width: "100%", background: "none", border: "none", color: "var(--text-muted)", fontSize: 13, marginTop: 8, padding: "10px 0" }}
-          onClick={proceed}
+          onClick={skipToDashboard}
         >
           I&apos;ll do this later
         </button>
