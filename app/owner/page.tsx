@@ -210,7 +210,7 @@ export default function OwnerDashboard() {
               parents={parents}
               schoolName={activeSchool?.name ?? ""}
             />
-            {activeSchool && activeSchool.branches.length > 0 && (
+            {activeSchool && (activeSchool.branches?.length ?? 0) > 0 && (
               <div className="card">
                 <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600 }}>Branches</h4>
                 {activeSchool.branches.map(b => (
