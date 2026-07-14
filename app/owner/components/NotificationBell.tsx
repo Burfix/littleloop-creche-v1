@@ -105,7 +105,7 @@ export function NotificationBell({ schoolId }: NotificationBellProps) {
 
           {notifications.length === 0 ? (
             <p style={{ margin: 0, padding: "16px 12px", fontSize: 13, color: "var(--text-muted)", textAlign: "center" }}>
-              Nothing yet — we&apos;ll let you know when something changes.
+              Nothing yet. We&apos;ll let you know when something changes.
             </p>
           ) : (
             notifications.map(n => (

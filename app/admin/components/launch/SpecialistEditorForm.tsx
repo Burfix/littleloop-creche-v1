@@ -43,7 +43,7 @@ export function SpecialistEditorForm({ schoolId, specialist, actor, firebaseUser
       toast.success("Specialist updated");
       onSaved();
     } catch {
-      toast.error("Couldn't save — please try again");
+      toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -56,7 +56,7 @@ export function SpecialistEditorForm({ schoolId, specialist, actor, firebaseUser
       toast.success("Specialist unassigned");
       onSaved();
     } catch {
-      toast.error("Couldn't save — please try again");
+      toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
     }

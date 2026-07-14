@@ -62,7 +62,7 @@ export default function OnboardingInvitePage() {
 
   return (
     <div className="app-shell" style={{ padding: "32px 24px" }}>
-      <OnboardingProgressBar step={5} />
+      <OnboardingProgressBar step={4} label="Teachers and parents" />
 
       <h1 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 8px" }}>
         Invite your team

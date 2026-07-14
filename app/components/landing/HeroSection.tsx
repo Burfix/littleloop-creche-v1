@@ -11,7 +11,7 @@ export function HeroSection() {
         <h1>Every parent deserves to <em>know</em></h1>
         <p className="l-hero-sub">
           LittleLoop replaces WhatsApp chaos and paper registers with one real-time
-          platform — a parent portal, teacher toolkit, and owner cockpit. Mobile-first,
+          platform: a parent portal, teacher toolkit, and owner cockpit. Mobile-first,
           no downloads, ready in a day.
         </p>
         <div className="l-hero-actions">

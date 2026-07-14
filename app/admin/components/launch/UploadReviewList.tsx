@@ -44,7 +44,7 @@ function UploadRow({ schoolId, reviewerUid, kind, upload, actor, firebaseUser, o
       toast.success(`${KIND_LABELS[kind]} accepted`);
       onSaved();
     } catch {
-      toast.error("Couldn't save — please try again");
+      toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -61,7 +61,7 @@ function UploadRow({ schoolId, reviewerUid, kind, upload, actor, firebaseUser, o
       setFeedback("");
       onSaved();
     } catch {
-      toast.error("Couldn't save — please try again");
+      toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
     }

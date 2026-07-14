@@ -5,7 +5,6 @@ import { useAuth } from "@/lib/auth-context";
 import { useSchool } from "@/lib/school-context";
 import { updateUser } from "@/lib/db";
 import { Sprout } from "lucide-react";
-import { OnboardingProgressBar } from "./components/OnboardingProgressBar";
 
 // Screen 1 of the redesigned onboarding flow (see
 // LittleLoop-Onboarding-Redesign-Spec.docx) — large single headline, one
@@ -38,8 +37,6 @@ export default function OnboardingWelcomePage() {
 
   return (
     <div className="app-shell" style={{ justifyContent: "center", padding: "32px 24px" }}>
-      <OnboardingProgressBar step={1} />
-
       <div
         style={{
           width: 48, height: 48, borderRadius: 14,
@@ -55,7 +52,7 @@ export default function OnboardingWelcomePage() {
         Welcome, {firstName}
       </h1>
       <p style={{ fontSize: 15, color: "var(--text-muted)", margin: 0, lineHeight: 1.5 }}>
-        Let&apos;s get {schoolName} live. Six short steps, about 8 minutes.
+        Let&apos;s get {schoolName} live. Five short steps, about 8 minutes.
       </p>
 
       <div style={{ marginTop: "auto", paddingTop: 40 }}>

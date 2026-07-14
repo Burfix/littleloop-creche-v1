@@ -39,12 +39,12 @@ export function DataUploadWidget({ schoolId, kind, actionLabel, helpText, latest
     try {
       const fileUrl = await uploadLaunchFile(schoolId, kind, file);
       await createLaunchUpload(schoolId, kind, file.name, fileUrl, appUser.uid);
-      toast.success("Uploaded — we'll take it from here");
+      toast.success("Uploaded. We'll take it from here.");
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       onUploaded();
     } catch {
-      toast.error("Upload failed — please try again");
+      toast.error("Upload failed. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -54,7 +54,7 @@ export function DataUploadWidget({ schoolId, kind, actionLabel, helpText, latest
   if (!file && latestUpload?.status === "accepted") {
     return (
       <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
-        <FileText size={14} aria-hidden="true" /> {latestUpload.fileName} — imported
+        <FileText size={14} aria-hidden="true" /> {latestUpload.fileName}, imported
       </p>
     );
   }
@@ -95,7 +95,7 @@ export function DataUploadWidget({ schoolId, kind, actionLabel, helpText, latest
     return (
       <StatusBadge
         status={latestUpload.status}
-        detail={`${latestUpload.fileName} — ${latestUpload.status === "under_review" ? "LittleLoop is reviewing your data" : "Submitted — awaiting review"}`}
+        detail={`${latestUpload.fileName}: ${latestUpload.status === "under_review" ? "LittleLoop is reviewing your data" : "submitted, awaiting review"}`}
       />
     );
   }
@@ -106,7 +106,7 @@ export function DataUploadWidget({ schoolId, kind, actionLabel, helpText, latest
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {latestUpload?.status === "needs_changes" ? (
         <p style={{ margin: 0, fontSize: 12, color: "var(--danger)" }}>
-          {latestUpload.feedback ?? "This needs a small fix — please re-upload."}
+          {latestUpload.feedback ?? "This needs a small fix. Please re-upload."}
         </p>
       ) : (
         <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>{helpText}</p>

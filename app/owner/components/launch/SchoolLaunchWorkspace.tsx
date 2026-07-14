@@ -68,7 +68,7 @@ export function SchoolLaunchWorkspace({ schoolName, status, schoolId, onRefresh 
             Let&apos;s get {schoolName} ready to launch
           </h1>
           <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>
-            You&apos;re not doing this alone — LittleLoop is preparing your school with you.
+            You&apos;re not doing this alone. LittleLoop is preparing your school with you.
           </p>
         </div>
 

@@ -44,7 +44,7 @@ function OverrideRow({ schoolId, taskKey, currentStatus, currentNotes, actor, on
       toast.success("Saved");
       onSaved();
     } catch {
-      toast.error("Couldn't save — please try again");
+      toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -54,10 +54,10 @@ function OverrideRow({ schoolId, taskKey, currentStatus, currentNotes, actor, on
     setSaving(true);
     try {
       await setTaskOverride(schoolId, taskKey, null, actor);
-      toast.success("Override cleared — back to automatic status");
+      toast.success("Override cleared. Back to automatic status.");
       onSaved();
     } catch {
-      toast.error("Couldn't save — please try again");
+      toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -108,7 +108,7 @@ export function TaskOverridesPanel({ schoolId, stages, record, actor, firebaseUs
       toast.success("School marked as live");
       onSaved();
     } catch {
-      toast.error("Couldn't save — please try again");
+      toast.error("Couldn't save. Please try again.");
     } finally {
       setGoingLive(false);
     }
@@ -118,7 +118,7 @@ export function TaskOverridesPanel({ schoolId, stages, record, actor, firebaseUs
     <div className="card" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <h4 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 700 }}>Manual milestones</h4>
       <p style={{ margin: "0 0 8px", fontSize: 12, color: "var(--text-muted)" }}>
-        These three steps have no automatic signal — only staff can mark them.
+        These three steps have no automatic signal. Only staff can mark them.
       </p>
 
       {training && (

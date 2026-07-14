@@ -31,6 +31,7 @@ import { NotificationBell } from "./components/NotificationBell";
 import { SchoolLaunchWorkspace } from "./components/launch/SchoolLaunchWorkspace";
 import { SuccessPanel } from "./components/launch/SuccessPanel";
 import { LoadingSkeleton } from "./components/launch/LoadingSkeleton";
+import { InlineErrorState } from "./components/InlineErrorState";
 
 type Tab = "overview" | "billing" | "settings";
 
@@ -56,6 +57,8 @@ export default function OwnerDashboard() {
   const [hasMoreInvoices, setHasMoreInvoices] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     if (!appUser) { router.replace("/login"); return; }
@@ -68,6 +71,7 @@ export default function OwnerDashboard() {
     async function loadDashboard() {
       if (!schoolId) { if (!cancelled) setLoading(false); return; }
 
+      if (!cancelled) setLoadError(null);
       try {
         const today = new Date().toISOString().slice(0, 10);
         const [resolvedSchool, s, invoicePage, schoolParents, schoolTeachers, schoolClasses, updates] = await Promise.all([
@@ -96,6 +100,9 @@ export default function OwnerDashboard() {
         setLaunchStatus(launchStatusResult);
         setInvoiceCursor(invoicePage.nextCursor);
         setHasMoreInvoices(invoicePage.hasMore);
+      } catch (err) {
+        console.error("Failed to load owner dashboard", { schoolId, err });
+        if (!cancelled) setLoadError("We couldn't load your cockpit. Your data is safe, this is a connection issue.");
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -114,7 +121,14 @@ export default function OwnerDashboard() {
     registerForPushNotifications(appUser.uid);
 
     return () => { cancelled = true; };
-  }, [appUser, school, schoolLoading, router]);
+  }, [appUser, school, schoolLoading, router, reloadToken]);
+
+  const handleRetryLoad = () => {
+    setLoading(true);
+    setLaunchStatusLoading(true);
+    setLoadError(null);
+    setReloadToken(t => t + 1);
+  };
 
   // appUser comes from a one-time getDoc in auth-context, not a live
   // listener (see lib/auth-context.tsx) — it won't reactively update after
@@ -146,9 +160,13 @@ export default function OwnerDashboard() {
       const resolvedSchool = school?.id === schoolId ? school : (ownerSchool ?? await getSchool(schoolId));
       const next = await getSchoolLaunchStatus(schoolId, resolvedSchool, appUser);
       setLaunchStatus(next);
-    } catch {
+    } catch (err) {
       // Non-fatal — the workspace just shows slightly stale data until the
-      // next full page load re-derives it.
+      // next full page load re-derives it. Still surfaced so the owner
+      // knows a refresh attempt didn't land, rather than silently
+      // continuing to show pre-action data with no signal anything failed.
+      console.error("Failed to refresh launch status", { schoolId, err });
+      toast.error("Couldn't refresh your School Launch. Showing your last known status.");
     }
   };
 
@@ -230,6 +248,14 @@ export default function OwnerDashboard() {
 
   if (loading || !appUser) {
     return <div className="page-loader"><div className="spinner" /></div>;
+  }
+
+  if (loadError) {
+    return (
+      <div className="app-shell" style={{ justifyContent: "center", padding: "32px 24px" }}>
+        <InlineErrorState message={loadError} onRetry={handleRetryLoad} />
+      </div>
+    );
   }
 
   return (
@@ -343,6 +369,7 @@ export default function OwnerDashboard() {
               setInvoices(prev => [inv, ...prev]);
               void refreshLaunchStatus();
             }}
+            onRequestInvite={() => setTab("settings")}
           />
         )}
 

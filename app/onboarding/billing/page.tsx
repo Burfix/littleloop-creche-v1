@@ -7,6 +7,7 @@ import { getSchool, getChildrenForSchoolPage } from "@/lib/db";
 import type { Child, Invoice, School } from "@/lib/types";
 import { OnboardingProgressBar } from "../components/OnboardingProgressBar";
 import { CreateInvoiceForm } from "@/app/owner/components/CreateInvoiceForm";
+import { BillingPrerequisiteNotice } from "@/app/owner/components/BillingPrerequisiteNotice";
 import { ArrowLeft, CircleCheck, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -60,10 +61,11 @@ export default function OnboardingBillingPage() {
   }
 
   const activeChildren = children.filter(c => c.deletionStatus !== "pending_erasure");
+  const childrenWithParent = activeChildren.filter(c => (c.parentIds?.length ?? 0) > 0);
 
   return (
     <div className="app-shell" style={{ padding: "32px 24px" }}>
-      <OnboardingProgressBar step={7} />
+      <OnboardingProgressBar step={5} label="Billing" />
 
       {!created ? (
         <>
@@ -71,17 +73,25 @@ export default function OnboardingBillingPage() {
             Configure billing
           </h1>
           <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "0 0 24px" }}>
-            Create your first invoice — parents get notified and can upload proof of payment.
+            Create your first invoice. Parents get notified and can upload proof of payment.
           </p>
 
           {activeChildren.length === 0 ? (
             <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 20px" }}>
-              You&apos;ll need at least one child (with a parent linked) before creating an invoice — you can always do this from the Billing tab later.
+              You&apos;ll need at least one child (with a parent linked) before creating an invoice.
+              You can always do this from the Billing tab later.
             </p>
+          ) : childrenWithParent.length === 0 ? (
+            <div style={{ marginBottom: 20 }}>
+              <BillingPrerequisiteNotice
+                onPrimaryAction={() => router.push("/onboarding/invite")}
+                onSecondaryAction={() => router.push("/onboarding/complete")}
+              />
+            </div>
           ) : (
             <CreateInvoiceForm
               schoolId={school.id}
-              childRecords={activeChildren}
+              childRecords={childrenWithParent}
               onInvoiceCreated={setCreated}
             />
           )}
@@ -99,7 +109,7 @@ export default function OnboardingBillingPage() {
             </button>
             <button
               style={{ width: "100%", background: "none", border: "none", color: "var(--text-muted)", fontSize: 13, padding: "6px 0" }}
-              onClick={() => router.push("/owner")}
+              onClick={() => router.push("/onboarding/complete")}
             >
               I&apos;ll do this later
             </button>
@@ -134,7 +144,7 @@ export default function OnboardingBillingPage() {
           <button
             className="btn btn-primary"
             style={{ width: "100%" }}
-            onClick={() => router.push("/owner")}
+            onClick={() => router.push("/onboarding/complete")}
           >
             Continue
           </button>

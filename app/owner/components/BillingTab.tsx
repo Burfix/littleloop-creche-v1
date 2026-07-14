@@ -8,6 +8,7 @@ import type { Invoice, Child, AppUser, School } from "@/lib/types";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import { MessageCircle, Plus, X } from "lucide-react";
 import { CreateInvoiceForm } from "./CreateInvoiceForm";
+import { BillingPrerequisiteNotice } from "./BillingPrerequisiteNotice";
 
 interface BillingTabProps {
   invoices: Invoice[];
@@ -20,6 +21,10 @@ interface BillingTabProps {
   onLoadMore: () => Promise<void>;
   onInvoiceUpdate: (updatedInvoice: Invoice) => void;
   onInvoiceCreated: (invoice: Invoice) => void;
+  /** Jumps to Settings, where InviteForm lives, so "Invite or connect
+   * parent" actually goes somewhere — optional so BillingTab doesn't
+   * require its host to support tab navigation. */
+  onRequestInvite?: () => void;
 }
 
 function formatPhone(phone?: string): string {
@@ -50,12 +55,16 @@ const STATUS_PILL: Record<string, string> = {
 export function BillingTab({
   invoices, children, parents, school,
   hasMoreInvoices, loadingInvoices,
-  onLoadMore, onInvoiceUpdate, onInvoiceCreated,
+  onLoadMore, onInvoiceUpdate, onInvoiceCreated, onRequestInvite,
 }: BillingTabProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   const childMap = Object.fromEntries(children.map(c => [c.id, c]));
   const parentMap = Object.fromEntries(parents.map(p => [p.uid, p]));
+
+  const activeChildren = children.filter(c => c.deletionStatus !== "pending_erasure");
+  const childrenWithParent = activeChildren.filter(c => (c.parentIds?.length ?? 0) > 0);
+  const canCreateInvoice = childrenWithParent.length > 0;
 
   const currentMonth = new Date().toISOString().slice(0, 7);
   const currentMonthInvoices = invoices.filter(i => i.month === currentMonth);
@@ -110,7 +119,7 @@ export function BillingTab({
         {inv.proofUrl && inv.status !== "paid" && (
           <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
             <p style={{ margin: "0 0 6px", fontSize: 12, color: "var(--text-muted)" }}>
-              Proof uploaded — verify payment
+              Proof uploaded. Please verify payment.
             </p>
             <div style={{ display: "flex", gap: 8 }}>
               <button
@@ -158,16 +167,22 @@ export function BillingTab({
       </div>
 
       {/* Create form */}
-      {showCreateForm && (
+      {showCreateForm && !canCreateInvoice && (
+        <BillingPrerequisiteNotice
+          onPrimaryAction={() => { setShowCreateForm(false); onRequestInvite?.(); }}
+          onSecondaryAction={() => setShowCreateForm(false)}
+        />
+      )}
+      {showCreateForm && canCreateInvoice && (
         <CreateInvoiceForm
           schoolId={school.id}
-          childRecords={children}
+          childRecords={childrenWithParent}
           onInvoiceCreated={inv => { onInvoiceCreated(inv); setShowCreateForm(false); }}
         />
       )}
 
       {currentMonthInvoices.length === 0 && !showCreateForm && (
-        <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No invoices this month yet. Tap "New invoice" to create one.</p>
+        <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No invoices this month yet. Tap &quot;New invoice&quot; to create one.</p>
       )}
       {currentMonthInvoices.map(renderInvoice)}
 

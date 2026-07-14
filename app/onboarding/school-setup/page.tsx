@@ -107,7 +107,7 @@ export default function SchoolSetupPage() {
       }
       router.push("/onboarding/add-child");
     } catch {
-      toast.error("Could not save school details — try again");
+      toast.error("Could not save school details. Try again.");
       setSaving(false);
     }
   };
@@ -118,7 +118,7 @@ export default function SchoolSetupPage() {
 
   return (
     <div className="app-shell" style={{ padding: "32px 24px" }}>
-      <OnboardingProgressBar step={2} />
+      <OnboardingProgressBar step={1} label="School details" />
 
       <h1 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 8px" }}>
         Tell us about your school

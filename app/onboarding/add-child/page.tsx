@@ -34,7 +34,7 @@ export default function AddChildPage() {
 
   return (
     <div className="app-shell" style={{ padding: "32px 24px" }}>
-      <OnboardingProgressBar step={3} />
+      <OnboardingProgressBar step={2} label="Children" />
 
       {!added ? (
         <>
@@ -42,7 +42,7 @@ export default function AddChildPage() {
             Add your first child
           </h1>
           <p style={{ fontSize: 14, color: "var(--text-muted)", margin: "0 0 24px" }}>
-            You can add the rest later — this just gets your first record in.
+            You can add the rest later. This just gets your first record in.
           </p>
 
           <AddChildForm schoolId={schoolId} onChildAdded={setAdded} />

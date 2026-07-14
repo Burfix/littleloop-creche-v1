@@ -9,6 +9,7 @@ import { getSchool } from "@/lib/db";
 import { getSchoolLaunchStatus, UNASSIGNED_SPECIALIST } from "@/lib/school-launch";
 import type { SchoolLaunchStatus } from "@/lib/types";
 import { PageHeader } from "../components/PageHeader";
+import { InlineErrorState } from "../components/InlineErrorState";
 import { LoadingSkeleton } from "../components/launch/LoadingSkeleton";
 import { LaunchStageCard } from "../components/launch/LaunchStageCard";
 import { PaymentSummaryCard } from "../components/launch/PaymentSummaryCard";
@@ -27,6 +28,8 @@ export default function LaunchSummaryPage() {
   const [status, setStatus] = useState<SchoolLaunchStatus | null>(null);
   const [schoolName, setSchoolName] = useState<string>("your school");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     if (!appUser) { router.replace("/login"); return; }
@@ -38,12 +41,16 @@ export default function LaunchSummaryPage() {
 
     async function load() {
       if (!schoolId) { if (!cancelled) setLoading(false); return; }
+      if (!cancelled) setLoadError(false);
       try {
         const resolvedSchool = school?.id === schoolId ? school : await getSchool(schoolId);
         const result = await getSchoolLaunchStatus(schoolId, resolvedSchool, appUser);
         if (cancelled) return;
         setStatus(result);
         setSchoolName(resolvedSchool?.name ?? "your school");
+      } catch (err) {
+        console.error("Failed to load School Launch summary", { schoolId, err });
+        if (!cancelled) setLoadError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -51,7 +58,13 @@ export default function LaunchSummaryPage() {
 
     void load();
     return () => { cancelled = true; };
-  }, [appUser, school, schoolLoading, router]);
+  }, [appUser, school, schoolLoading, router, reloadToken]);
+
+  const handleRetry = () => {
+    setLoading(true);
+    setLoadError(false);
+    setReloadToken(t => t + 1);
+  };
 
   const schoolId = school?.id ?? appUser?.schoolId ?? "";
 
@@ -73,7 +86,15 @@ export default function LaunchSummaryPage() {
       <div className="page-content" style={{ padding: "16px 20px" }}>
         {loading && <LoadingSkeleton />}
 
-        {!loading && !status && (
+        {!loading && loadError && (
+          <InlineErrorState
+            message="We couldn't load your School Launch summary."
+            detail="Your setup data is safe. This is a connection issue."
+            onRetry={handleRetry}
+          />
+        )}
+
+        {!loading && !loadError && !status && (
           <div className="card">
             <p style={{ margin: 0, fontSize: 14, color: "var(--text-muted)" }}>
               No launch record found for {schoolName}.
@@ -81,14 +102,14 @@ export default function LaunchSummaryPage() {
           </div>
         )}
 
-        {!loading && status && (
+        {!loading && !loadError && status && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div className="card">
               <p style={{ margin: "0 0 4px", fontSize: 13, color: "var(--text-muted)" }}>
                 {schoolName} completed its School Launch Package.
               </p>
               <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>
-                This is a read-only recap of how your school was set up — nothing here needs further action.
+                This is a read-only recap of how your school was set up. Nothing here needs further action.
               </p>
             </div>
 

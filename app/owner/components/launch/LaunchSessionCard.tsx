@@ -41,7 +41,7 @@ export function LaunchSessionCard({ session }: LaunchSessionCardProps) {
       <SectionHeader title="Next session" />
       {!session ? (
         <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>
-          No session scheduled yet — your specialist will reach out to book one.
+          No session scheduled yet. Your specialist will reach out to book one.
         </p>
       ) : (
         <>

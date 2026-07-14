@@ -9,7 +9,7 @@ import type { LaunchTaskStatus } from "@/lib/types";
 const STATUS_CONFIG: Record<LaunchTaskStatus, { label: string; Icon: typeof Circle; color: string }> = {
   not_started: { label: "Not started yet", Icon: CircleDashed, color: "var(--text-muted)" },
   waiting_for_school: { label: "Waiting for you", Icon: Clock, color: "var(--brand)" },
-  submitted: { label: "Submitted — awaiting review", Icon: Send, color: "var(--brand)" },
+  submitted: { label: "Submitted, awaiting review", Icon: Send, color: "var(--brand)" },
   under_review: { label: "LittleLoop is reviewing this", Icon: Clock, color: "var(--brand)" },
   needs_changes: { label: "Needs your attention", Icon: TriangleAlert, color: "var(--danger)" },
   scheduled: { label: "Scheduled", Icon: CalendarCheck2, color: "var(--brand)" },

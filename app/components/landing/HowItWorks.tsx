@@ -2,7 +2,7 @@ const STEPS = [
   {
     num: "01",
     title: "You onboard your school",
-    body: "We set up your school in minutes. Add your classes, invite teachers and parents — they get an email and set their own password.",
+    body: "We set up your school in minutes. Add your classes, invite teachers and parents. They get an email and set their own password.",
   },
   {
     num: "02",
@@ -12,7 +12,7 @@ const STEPS = [
   {
     num: "03",
     title: "Parents stay connected",
-    body: "Every parent sees their child's full day as it happens — no waiting for a WhatsApp message or a paper note at pickup.",
+    body: "Every parent sees their child's full day as it happens, no waiting for a WhatsApp message or a paper note at pickup.",
   },
 ];
 

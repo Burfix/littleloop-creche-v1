@@ -38,7 +38,7 @@ export function CreateInvoiceForm({ schoolId, childRecords, onInvoiceCreated }: 
     const child = childMap[form.childId];
     if (!child) { toast.error("Child not found"); return; }
     const parentId = child.parentIds?.[0];
-    if (!parentId) { toast.error("This child has no linked parent — invite the parent first"); return; }
+    if (!parentId) { toast.error("This child has no linked parent. Invite the parent first."); return; }
 
     setCreating(true);
     try {

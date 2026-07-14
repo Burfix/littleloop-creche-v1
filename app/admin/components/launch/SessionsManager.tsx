@@ -93,7 +93,7 @@ export function SessionsManager({ schoolId, sessions, actor, firebaseUser, onSav
       cancelForm();
       onSaved();
     } catch {
-      toast.error("Couldn't save — please try again");
+      toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -106,7 +106,7 @@ export function SessionsManager({ schoolId, sessions, actor, firebaseUser, onSav
       toast.success("Session removed");
       onSaved();
     } catch {
-      toast.error("Couldn't remove — please try again");
+      toast.error("Couldn't remove. Please try again.");
     } finally {
       setSaving(false);
     }

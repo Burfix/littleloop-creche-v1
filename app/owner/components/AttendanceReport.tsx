@@ -54,7 +54,7 @@ export function AttendanceReport({ classes, children, dailyUpdates }: Attendance
       >
         <div>
           <p style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>
-            Today&apos;s roster — {format(new Date(), "d MMMM")}
+            Today&apos;s roster, {format(new Date(), "d MMMM")}
           </p>
           <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)" }}>
             {checkedInTotal} checked in · {checkedOutTotal} checked out

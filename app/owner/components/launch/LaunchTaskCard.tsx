@@ -67,7 +67,7 @@ export function LaunchTaskCard({ task, schoolId, latestUpload, onUploaded }: Lau
         />
       )}
       {task.actionType === "upload" && isDone && (
-        <StatusBadge status="completed" detail={latestUpload ? `${latestUpload.fileName} — imported` : undefined} />
+        <StatusBadge status="completed" detail={latestUpload ? `${latestUpload.fileName}, imported` : undefined} />
       )}
 
       {task.actionType !== "upload" && task.actionType !== "none" && task.actionHref && !isDone && (

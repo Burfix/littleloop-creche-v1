@@ -13,7 +13,7 @@ export function AttendanceCard({ checkedInToday, totalChildren }: AttendanceCard
   return (
     <div className="card" style={{ background: "var(--brand)", color: "white", border: "none" }}>
       <p style={{ margin: "0 0 4px", fontSize: 12, opacity: 0.8 }}>
-        Today — {format(new Date(), "d MMMM")}
+        Today, {format(new Date(), "d MMMM")}
       </p>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
         <span style={{ fontSize: 40, fontWeight: 800, lineHeight: 1 }}>{checkedInToday}</span>

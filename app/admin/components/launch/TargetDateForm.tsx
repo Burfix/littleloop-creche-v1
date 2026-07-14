@@ -22,7 +22,7 @@ export function TargetDateForm({ schoolId, targetGoLiveDate, actor, onSaved }: T
       toast.success("Target launch date updated");
       onSaved();
     } catch {
-      toast.error("Couldn't save — please try again");
+      toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
     }

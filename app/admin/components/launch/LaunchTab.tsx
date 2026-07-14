@@ -55,7 +55,7 @@ export function LaunchTab({ schools, appUser, firebaseUser }: LaunchTabProps) {
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 700 }}>School Launch Package</h3>
       <p style={{ margin: "0 0 4px", fontSize: 13, color: "var(--text-muted)" }}>
-        Manage each school&apos;s paid onboarding — specialist, payment, sessions, data review, and go-live.
+        Manage each school&apos;s paid onboarding: specialist, payment, sessions, data review, and go-live.
       </p>
 
       {loading && <div className="card"><div className="spinner" /></div>}

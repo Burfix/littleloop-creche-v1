@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const existing = await db.collection("schools")
       .where("slug", "==", slug.toLowerCase()).limit(1).get();
     if (!existing.empty) {
-      return NextResponse.json({ error: "Slug already taken — choose a different URL name" }, { status: 409 });
+      return NextResponse.json({ error: "Slug already taken. Choose a different URL name." }, { status: 409 });
     }
 
     // 2. Create school document

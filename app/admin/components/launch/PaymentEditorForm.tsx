@@ -40,7 +40,7 @@ export function PaymentEditorForm({ schoolId, payment, actor, firebaseUser, onSa
       toast.success("Payment updated");
       onSaved();
     } catch {
-      toast.error("Couldn't save — please try again");
+      toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
     }

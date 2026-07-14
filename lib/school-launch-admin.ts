@@ -146,7 +146,7 @@ export async function updateSpecialist(
 const PAYMENT_NOTIFICATION_COPY: Record<SchoolLaunchPayment["status"], string | null> = {
   unpaid: null, // resets are an internal correction, not owner-facing news
   invoiced: "An invoice for your School Launch Package is on its way.",
-  paid: "Thanks — your School Launch Package payment has been confirmed.",
+  paid: "Thanks. Your School Launch Package payment has been confirmed.",
   waived: "Your School Launch Package fee has been waived.",
 };
 
@@ -168,7 +168,7 @@ export async function updatePayment(
     await notifyOwnerOfLaunchEvent({
       schoolId,
       category: "payment_updated",
-      title: `${payment.packageName} — payment update`,
+      title: `${payment.packageName}: payment update`,
       body,
       link: "/owner",
       actorIdToken: idToken,
@@ -226,7 +226,7 @@ export async function upsertLaunchSession(
     schoolId,
     category: isNew ? "session_scheduled" : "session_updated",
     title: isNew ? "A launch session has been scheduled" : "Your launch session was updated",
-    body: `${finalSession.title} — ${whenText}.`,
+    body: `${finalSession.title}, ${whenText}.`,
     link: "/owner",
     actorIdToken: idToken,
   });
@@ -283,7 +283,7 @@ export async function markSchoolGoLive(schoolId: string, actor: AdminActor, idTo
     schoolId,
     category: "go_live",
     title: "Your school is now live on LittleLoop",
-    body: "Your School Launch Package is complete — you're fully operational.",
+    body: "Your School Launch Package is complete. You're fully operational.",
     link: "/owner",
     actorIdToken: idToken,
   });
@@ -320,7 +320,7 @@ export async function reviewLaunchUpload(
       schoolId,
       category: "upload_reviewed",
       title: "Your data submission was imported",
-      body: "We've reviewed and imported your file — no action needed.",
+      body: "We've reviewed and imported your file. No action needed.",
       link: "/owner",
       actorIdToken: idToken,
     });
@@ -329,7 +329,7 @@ export async function reviewLaunchUpload(
       schoolId,
       category: "upload_reviewed",
       title: "Your data submission needs a change",
-      body: feedback?.trim() || "We found something that needs fixing before we can import it — please re-upload.",
+      body: feedback?.trim() || "We found something that needs fixing before we can import it. Please re-upload.",
       link: "/owner",
       actorIdToken: idToken,
     });
