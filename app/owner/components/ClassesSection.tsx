@@ -37,7 +37,10 @@ export function ClassesSection({ school, teachers, onClassesChange }: ClassesSec
     let cancelled = false;
     getClassesForSchool(school.id)
       .then(cs => { if (!cancelled) { setClasses(cs); onClassesChange?.(cs); } })
-      .catch(() => toast.error("Could not load classes"))
+      .catch(err => {
+        console.error("Failed to load classes", { schoolId: school.id, err });
+        toast.error("Could not load classes");
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [school.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -74,7 +77,8 @@ export function ClassesSection({ school, teachers, onClassesChange }: ClassesSec
       toast.success(`${form.name} created`);
       setForm(DEFAULT_FORM);
       setShowForm(false);
-    } catch {
+    } catch (err) {
+      console.error("Failed to create class", { schoolId: school.id, err });
       toast.error("Could not create class");
     } finally {
       setSaving(false);
@@ -92,7 +96,8 @@ export function ClassesSection({ school, teachers, onClassesChange }: ClassesSec
       const updated = classes.map(c => c.id === cls.id ? { ...c, teacherIds: newIds } : c);
       setClasses(updated);
       onClassesChange?.(updated);
-    } catch {
+    } catch (err) {
+      console.error("Failed to update class", { classId: cls.id, err });
       toast.error("Could not update class");
     }
   };
@@ -105,7 +110,8 @@ export function ClassesSection({ school, teachers, onClassesChange }: ClassesSec
       setClasses(updated);
       onClassesChange?.(updated);
       toast.success(`${cls.name} deleted`);
-    } catch {
+    } catch (err) {
+      console.error("Failed to delete class", { classId: cls.id, err });
       toast.error("Could not delete class");
     } finally {
       setDeletingId(null);

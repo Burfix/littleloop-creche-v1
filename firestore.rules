@@ -82,7 +82,13 @@ service cloud.firestore {
         isSuperAdmin() ||
         userSchoolId() == resource.data.schoolId
       );
-      allow write: if isOwnerOf(resource.data.schoolId) || isSuperAdmin();
+      // `resource.data` refers to the document as it already exists, which
+      // is undefined for a brand-new class — create must check the
+      // incoming document (request.resource.data) instead, same pattern
+      // as children/invoices below. Without this split, every class
+      // creation is silently denied.
+      allow create: if isOwnerOf(request.resource.data.schoolId) || isSuperAdmin();
+      allow update, delete: if isOwnerOf(resource.data.schoolId) || isSuperAdmin();
     }
 
     // ── Daily Updates ────────────────────────────────────────────
