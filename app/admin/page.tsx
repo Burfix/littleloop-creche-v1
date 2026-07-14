@@ -10,8 +10,9 @@ import { SchoolsTab } from "./components/SchoolsTab";
 import { InviteTab } from "./components/InviteTab";
 import { AddSchoolModal } from "./components/AddSchoolModal";
 import { UsersPanel } from "./components/UsersPanel";
+import { LaunchTab } from "./components/launch/LaunchTab";
 
-type Tab = "schools" | "invite" | "users";
+type Tab = "schools" | "invite" | "users" | "launch";
 
 export default function AdminDashboard() {
   const { appUser, firebaseUser, signOut } = useAuth();
@@ -58,7 +59,7 @@ export default function AdminDashboard() {
 
         {/* Tab bar */}
         <div style={{ display: "flex", gap: 0 }}>
-          {(["schools", "invite", "users"] as Tab[]).map(t => (
+          {(["schools", "launch", "invite", "users"] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
               flex: 1, padding: "10px 0", border: "none", background: "none",
               borderBottom: tab === t ? "2px solid var(--brand)" : "2px solid transparent",
@@ -66,7 +67,7 @@ export default function AdminDashboard() {
               fontWeight: tab === t ? 600 : 400, fontSize: 14, cursor: "pointer",
               textTransform: "capitalize",
             }}>
-              {t === "schools" ? "Schools" : t === "invite" ? "Invite User" : "Users"}
+              {t === "schools" ? "Schools" : t === "launch" ? "Launch" : t === "invite" ? "Invite User" : "Users"}
             </button>
           ))}
         </div>
@@ -80,6 +81,10 @@ export default function AdminDashboard() {
             onAddSchool={() => { setSetupSent(false); setShowAddModal(true); }}
             onSelectSchool={handleSelectSchool}
           />
+        )}
+
+        {tab === "launch" && (
+          <LaunchTab schools={schools} appUser={appUser} />
         )}
 
         {tab === "invite" && firebaseUser && (

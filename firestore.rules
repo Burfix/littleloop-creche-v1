@@ -168,6 +168,17 @@ service cloud.firestore {
       allow update, delete: if isSuperAdmin();
     }
 
+    // ── Launch Audit Log ─────────────────────────────────────────
+    // One entry per staff write to a school's launch record/uploads
+    // (specialist, payment, sessions, task overrides, upload review,
+    // go-live). Staff-only, immutable — never updated or deleted, and
+    // never readable by school owners (this is an internal LittleLoop
+    // operational log, not part of the owner-facing launch summary).
+    match /launchAuditLog/{entryId} {
+      allow read, create: if isSuperAdmin();
+      allow update, delete: if false;
+    }
+
     // ── Messages ─────────────────────────────────────────────────
     // threadId format: {teacherId}_{parentId}_{childId}
     // Only the two participants in the thread can read it.

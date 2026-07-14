@@ -378,3 +378,34 @@ export interface SchoolLaunchStatus {
   nextSession?: LaunchSession;
   uploads: Partial<Record<LaunchUploadKind, LaunchUpload>>;
 }
+
+// ─── Launch admin audit trail ────────────────────────────────────────────
+// Every staff-side write to a school's launch record or uploads (the
+// staff admin surface in app/admin) is logged here — immutable,
+// superadmin-only, one collection across all schools (see firestore.rules
+// launchAuditLog/{entryId}). This is what lets an enterprise prospect or
+// internal audit answer "who changed this and when" for paid onboarding
+// data, not just "what does it look like now."
+
+export type LaunchAuditAction =
+  | "specialist_updated"
+  | "payment_updated"
+  | "target_date_updated"
+  | "session_created"
+  | "session_updated"
+  | "session_removed"
+  | "task_override_set"
+  | "task_override_cleared"
+  | "upload_reviewed"
+  | "go_live_marked";
+
+export interface LaunchAuditLogEntry {
+  id: string;
+  schoolId: string;
+  action: LaunchAuditAction;
+  summary: string; // human-readable one-liner, e.g. "Payment marked as paid"
+  actorUid: string;
+  actorName: string;
+  createdAt: string;
+  metadata?: Record<string, string>; // small before/after context for the summary
+}
