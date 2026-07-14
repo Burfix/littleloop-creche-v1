@@ -1,12 +1,15 @@
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import { countWhere } from "./onboarding";
+import { getLatestLaunchUploads } from "./launch-uploads";
 import type {
   AppUser,
   ImplementationSpecialist,
   LaunchSession,
   LaunchStageKey,
   LaunchTaskStatus,
+  LaunchUpload,
+  LaunchUploadKind,
   School,
   SchoolLaunchPayment,
   SchoolLaunchRecord,
@@ -46,6 +49,16 @@ export const UNASSIGNED_SPECIALIST: ImplementationSpecialist = {
   initials: "?",
 };
 
+// Which upload kind (if any) backs a given task — shared with the UI layer
+// so LaunchTaskCard knows which LaunchUpload to show/act on for a task
+// without duplicating this mapping.
+export const TASK_KEY_TO_UPLOAD_KIND: Partial<Record<string, LaunchUploadKind>> = {
+  uploadEnrolmentList: "children",
+  inviteTeachers: "teachers",
+  inviteParents: "parents",
+  provideFeeStructure: "feeStructure",
+};
+
 const DEFAULT_PAYMENT: SchoolLaunchPayment = {
   status: "unpaid",
   packageName: DEFAULT_LAUNCH_PACKAGE_NAME,
@@ -65,6 +78,8 @@ interface TaskTemplate {
   required: boolean;
   actionType: SchoolLaunchTask["actionType"];
   actionHref?: string;
+  secondaryActionHref?: string;
+  secondaryActionLabel?: string;
 }
 
 interface StageTemplate {
@@ -96,9 +111,13 @@ const STAGE_TEMPLATES: StageTemplate[] = [
     title: "Children import",
     description: "Get your enrolled children into LittleLoop.",
     tasks: [
-      { key: "uploadEnrolmentList", title: "Upload your enrolment list", description: "We'll clean and import the information for you. You do not need to add every child manually.", responsibility: "school", required: true, actionType: "upload" },
+      {
+        key: "uploadEnrolmentList", title: "Upload your enrolment list",
+        description: "We'll clean and import the information for you. You do not need to add every child manually.",
+        responsibility: "school", required: true, actionType: "upload",
+        secondaryActionHref: "/onboarding/add-child", secondaryActionLabel: "Add manually instead",
+      },
       { key: "validateImportedChildren", title: "LittleLoop validates imported data", description: "We check for duplicates and missing details.", responsibility: "littleloop", required: false, actionType: "none" },
-      { key: "addChildrenManually", title: "Add manually instead", responsibility: "school", required: false, actionType: "manual_form", actionHref: "/onboarding/add-child" },
     ],
   },
   {
@@ -114,7 +133,12 @@ const STAGE_TEMPLATES: StageTemplate[] = [
     title: "Teachers",
     description: "Invite the staff who'll run daily attendance and updates.",
     tasks: [
-      { key: "inviteTeachers", title: "Invite your teachers", responsibility: "school", required: true, actionType: "manual_form", actionHref: "/onboarding/invite" },
+      {
+        key: "inviteTeachers", title: "Upload your teacher list",
+        description: "We'll set up teacher accounts for you. You do not need to invite each teacher one by one.",
+        responsibility: "school", required: true, actionType: "upload",
+        secondaryActionHref: "/onboarding/invite", secondaryActionLabel: "Invite manually instead",
+      },
     ],
   },
   {
@@ -122,7 +146,12 @@ const STAGE_TEMPLATES: StageTemplate[] = [
     title: "Parents",
     description: "Connect parents so they can see their child's day and pay fees.",
     tasks: [
-      { key: "inviteParents", title: "Invite parents", responsibility: "school", required: true, actionType: "manual_form", actionHref: "/onboarding/invite" },
+      {
+        key: "inviteParents", title: "Upload your parent list",
+        description: "We'll link parents to their children for you. You do not need to invite each parent one by one.",
+        responsibility: "school", required: true, actionType: "upload",
+        secondaryActionHref: "/onboarding/invite", secondaryActionLabel: "Invite manually instead",
+      },
       { key: "parentInvitationReview", title: "Parent invitation review", description: "We'll check every child has a linked parent.", responsibility: "shared", required: false, actionType: "none" },
     ],
   },
@@ -131,7 +160,12 @@ const STAGE_TEMPLATES: StageTemplate[] = [
     title: "Billing configuration",
     description: "Set up your fee structure so invoicing is ready from day one.",
     tasks: [
-      { key: "provideFeeStructure", title: "Provide your fee structure", description: "Create your first invoice to confirm billing works.", responsibility: "school", required: true, actionType: "manual_form", actionHref: "/onboarding/billing" },
+      {
+        key: "provideFeeStructure", title: "Upload your fee structure",
+        description: "Send us your fee list and we'll configure billing for you.",
+        responsibility: "school", required: true, actionType: "upload",
+        secondaryActionHref: "/onboarding/billing", secondaryActionLabel: "Create an invoice manually instead",
+      },
       { key: "littleLoopPreparesBilling", title: "LittleLoop prepares billing", responsibility: "littleloop", required: false, actionType: "none" },
     ],
   },
@@ -203,6 +237,39 @@ export interface ComputeStatusInput {
   hasSeenWelcome: boolean;
   counts: DerivedCounts;
   record: SchoolLaunchRecord;
+  uploads: Partial<Record<LaunchUploadKind, LaunchUpload>>;
+}
+
+// An uploaded file takes precedence over the count-based signal — an owner
+// who's submitted a file is actively going through the assisted path, even
+// before LittleLoop has imported anything into the real collections yet.
+// Falls back to the manual/count-based signal when no upload exists at all
+// (covers both "did it manually instead" and schools that predate uploads).
+function deriveUploadBackedTaskStatus(
+  upload: LaunchUpload | undefined,
+  fallbackDone: boolean,
+): { status: LaunchTaskStatus; blockingReason?: string } {
+  if (upload) {
+    switch (upload.status) {
+      case "accepted": return { status: "completed" };
+      case "needs_changes": return { status: "needs_changes", blockingReason: upload.feedback };
+      case "under_review": return { status: "under_review" };
+      case "submitted": return { status: "submitted" };
+    }
+  }
+  return { status: fallbackDone ? "completed" : "waiting_for_school" };
+}
+
+// Companion informational task (e.g. "LittleLoop validates imported data")
+// mirrors the same upload's review state — not_applicable when there's
+// nothing to review yet (no upload, or the upload was just submitted and
+// review hasn't started).
+function deriveUploadReviewStatus(upload: LaunchUpload | undefined): LaunchTaskStatus {
+  if (!upload) return "not_applicable";
+  if (upload.status === "accepted") return "completed";
+  if (upload.status === "needs_changes") return "needs_changes";
+  if (upload.status === "under_review") return "under_review";
+  return "not_applicable";
 }
 
 function deriveTaskStatus(
@@ -212,7 +279,7 @@ function deriveTaskStatus(
   const override = input.record.taskOverrides[template.key];
   if (override) return override;
 
-  const { school, hasSeenWelcome, counts, record } = input;
+  const { school, hasSeenWelcome, counts, record, uploads } = input;
 
   switch (template.key) {
     case "welcomeAcknowledged":
@@ -220,24 +287,21 @@ function deriveTaskStatus(
     case "confirmSchoolDetails":
       return { status: school?.name ? "completed" : "waiting_for_school" };
     case "uploadEnrolmentList":
-    case "addChildrenManually":
-      return { status: counts.childCount > 0 ? "completed" : "waiting_for_school" };
+      return deriveUploadBackedTaskStatus(uploads.children, counts.childCount > 0);
     case "validateImportedChildren":
-      // No automated review pipeline yet (Phase 3) — not_applicable rather
-      // than pretending data has been reviewed.
-      return { status: "not_applicable" };
+      return { status: deriveUploadReviewStatus(uploads.children) };
     case "createFirstClass":
       return { status: counts.classCount > 0 ? "completed" : "waiting_for_school" };
     case "inviteTeachers":
-      return { status: counts.teacherCount > 0 ? "completed" : "waiting_for_school" };
+      return deriveUploadBackedTaskStatus(uploads.teachers, counts.teacherCount > 0);
     case "inviteParents":
-      return { status: counts.parentCount > 0 ? "completed" : "waiting_for_school" };
+      return deriveUploadBackedTaskStatus(uploads.parents, counts.parentCount > 0);
     case "parentInvitationReview":
-      return { status: "not_applicable" };
+      return { status: deriveUploadReviewStatus(uploads.parents) };
     case "provideFeeStructure":
-      return { status: counts.invoiceCount > 0 ? "completed" : "waiting_for_school" };
+      return deriveUploadBackedTaskStatus(uploads.feeStructure, counts.invoiceCount > 0);
     case "littleLoopPreparesBilling":
-      return { status: counts.invoiceCount > 0 ? "completed" : "not_applicable" };
+      return { status: deriveUploadReviewStatus(uploads.feeStructure) };
     case "completeTeacherTraining": {
       const trainingSession = record.sessions.find(s => s.type === "teacher_training");
       if (trainingSession?.status === "completed") return { status: "completed" };
@@ -276,6 +340,8 @@ export function computeSchoolLaunchStatus(input: ComputeStatusInput): SchoolLaun
         blockingReason: derived.blockingReason,
         actionType: taskTemplate.actionType,
         actionHref: taskTemplate.actionHref,
+        secondaryActionHref: taskTemplate.secondaryActionHref,
+        secondaryActionLabel: taskTemplate.secondaryActionLabel,
         notes: derived.notes,
         sortOrder: taskSortOrder,
       };
@@ -332,19 +398,21 @@ export function computeSchoolLaunchStatus(input: ComputeStatusInput): SchoolLaun
     specialist: input.record.specialist,
     payment: input.record.payment,
     nextSession: scheduledSessions[0],
+    uploads: input.uploads,
   };
 }
 
 // ─── Async wrapper ──────────────────────────────────────────────────────────
 
 export async function getSchoolLaunchStatus(schoolId: string, school: School | null, appUser: AppUser | null): Promise<SchoolLaunchStatus> {
-  const [record, childCount, classCount, teacherCount, parentCount, invoiceCount] = await Promise.all([
+  const [record, childCount, classCount, teacherCount, parentCount, invoiceCount, uploads] = await Promise.all([
     getSchoolLaunchRecord(schoolId),
     countWhere("children", schoolId),
     countWhere("classes", schoolId),
     countWhere("users", schoolId, ["role", "teacher"]),
     countWhere("users", schoolId, ["role", "parent"]),
     countWhere("invoices", schoolId),
+    getLatestLaunchUploads(schoolId),
   ]);
 
   return computeSchoolLaunchStatus({
@@ -352,6 +420,7 @@ export async function getSchoolLaunchStatus(schoolId: string, school: School | n
     hasSeenWelcome: !!appUser?.hasSeenOnboardingWelcome,
     counts: { childCount, classCount, teacherCount, parentCount, invoiceCount },
     record,
+    uploads,
   });
 }
 

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { Rocket } from "lucide-react";
 import type { Child, ClassRoom, School, AppUser } from "@/lib/types";
 import { AddChildForm } from "./AddChildForm";
 import { InviteForm } from "./InviteForm";
@@ -96,6 +98,20 @@ export function SettingsTab({
         onRequestErasure={onRequestErasure}
         onPermanentErasure={onPermanentErasure}
       />
+
+      <section className="card">
+        <h4 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600 }}>Help &amp; resources</h4>
+        <Link
+          href="/owner/launch-summary"
+          style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "10px 0",
+            fontSize: 14, color: "inherit", textDecoration: "none",
+          }}
+        >
+          <Rocket size={16} color="var(--brand)" aria-hidden="true" />
+          School Launch Summary
+        </Link>
+      </section>
 
       <button className="btn btn-danger" style={{ width: "100%" }} onClick={onSignOut}>
         Sign out

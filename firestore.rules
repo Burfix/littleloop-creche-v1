@@ -146,12 +146,26 @@ service cloud.firestore {
     // Doc id == schoolId. Specialist assignment, payment status, sessions
     // and target go-live date are set by the LittleLoop implementation
     // team, not by the school — owners get read-only access so the launch
-    // workspace UI can display it. No school-writable fields yet; revisit
-    // if/when owners need to self-serve any part of this (e.g. uploading
-    // an enrolment file directly into this doc rather than via /children).
+    // workspace UI can display it.
     match /schoolLaunches/{schoolId} {
       allow read: if isSignedIn() && (isSuperAdmin() || isOwnerOf(schoolId));
       allow create, update, delete: if isSuperAdmin();
+    }
+
+    // ── Launch Uploads (data import UX) ──────────────────────────
+    // Owners can submit files (children/teacher/parent lists, fee
+    // structure) for LittleLoop to review and import by hand — this is
+    // the one owner-writable piece of the launch data model. Only
+    // LittleLoop can change status/feedback (the review step) or delete a
+    // submission; "replace file" creates a new doc rather than mutating
+    // an existing one, so there's always a submission history.
+    match /launchUploads/{uploadId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() || isOwnerOf(resource.data.schoolId)
+      );
+      allow create: if isOwnerOf(request.resource.data.schoolId) &&
+        request.resource.data.status == 'submitted';
+      allow update, delete: if isSuperAdmin();
     }
 
     // ── Messages ─────────────────────────────────────────────────

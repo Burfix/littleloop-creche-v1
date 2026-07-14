@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { getSchool } from "@/lib/db";
-import { getOnboardingStatus } from "@/lib/onboarding";
+import { getSchoolLaunchStatus } from "@/lib/school-launch";
 import { LandingPage } from "@/app/components/landing/LandingPage";
 
 export default function RootPage() {
@@ -28,7 +28,7 @@ export default function RootPage() {
       let cancelled = false;
       (async () => {
         const school = await getSchool(appUser.schoolId!);
-        const status = await getOnboardingStatus(appUser.schoolId!, school);
+        const status = await getSchoolLaunchStatus(appUser.schoolId!, school, appUser);
         if (cancelled) return;
         // Schools that were already fully set up before this flow existed
         // skip Welcome entirely — an owner who finished setup months ago

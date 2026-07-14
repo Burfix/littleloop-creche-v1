@@ -49,6 +49,7 @@ function makeInput(overrides: Partial<ComputeStatusInput> = {}): ComputeStatusIn
     hasSeenWelcome: false,
     counts: ZERO_COUNTS,
     record: normalizeSchoolLaunchRecord("school-1", null),
+    uploads: {},
     ...overrides,
   };
 }
@@ -195,6 +196,68 @@ describe("computeSchoolLaunchStatus — staff overrides and blockers", () => {
     expect(task?.status).toBe("blocked");
     expect(status.blockers).toHaveLength(1);
     expect(status.blockers[0].blockingReason).toBe("Duplicate school name — needs a rename");
+  });
+});
+
+describe("computeSchoolLaunchStatus — upload-aware derivation", () => {
+  it("reflects an uploaded file's status even when the underlying count is still zero", () => {
+    const status = computeSchoolLaunchStatus(makeInput({
+      uploads: {
+        children: { id: "u1", schoolId: "school-1", kind: "children", fileName: "enrolment.csv", fileUrl: "https://x/enrolment.csv", status: "submitted", submittedAt: "2026-07-01T00:00:00.000Z", submittedBy: "owner-1" },
+      },
+    }));
+    const task = status.stages.flatMap(s => s.tasks).find(t => t.key === "uploadEnrolmentList");
+    expect(task?.status).toBe("submitted");
+  });
+
+  it("mirrors under_review onto both the main task and its companion review task", () => {
+    const status = computeSchoolLaunchStatus(makeInput({
+      uploads: {
+        children: { id: "u1", schoolId: "school-1", kind: "children", fileName: "enrolment.csv", fileUrl: "https://x/enrolment.csv", status: "under_review", submittedAt: "2026-07-01T00:00:00.000Z", submittedBy: "owner-1" },
+      },
+    }));
+    const byKey = Object.fromEntries(status.stages.flatMap(s => s.tasks).map(t => [t.key, t]));
+    expect(byKey.uploadEnrolmentList.status).toBe("under_review");
+    expect(byKey.validateImportedChildren.status).toBe("under_review");
+  });
+
+  it("surfaces upload feedback as the task's blockingReason and counts it as a blocker", () => {
+    const status = computeSchoolLaunchStatus(makeInput({
+      uploads: {
+        feeStructure: { id: "u1", schoolId: "school-1", kind: "feeStructure", fileName: "fees.xlsx", fileUrl: "https://x/fees.xlsx", status: "needs_changes", submittedAt: "2026-07-01T00:00:00.000Z", submittedBy: "owner-1", feedback: "Missing fees for the toddler class" },
+      },
+    }));
+    const task = status.stages.flatMap(s => s.tasks).find(t => t.key === "provideFeeStructure");
+    expect(task?.status).toBe("needs_changes");
+    expect(task?.blockingReason).toBe("Missing fees for the toddler class");
+    expect(status.blockers.some(t => t.key === "provideFeeStructure")).toBe(true);
+  });
+
+  it("marks the task completed once accepted, regardless of the manual-count signal", () => {
+    const status = computeSchoolLaunchStatus(makeInput({
+      counts: ZERO_COUNTS,
+      uploads: {
+        teachers: { id: "u1", schoolId: "school-1", kind: "teachers", fileName: "teachers.csv", fileUrl: "https://x/teachers.csv", status: "accepted", submittedAt: "2026-07-01T00:00:00.000Z", submittedBy: "owner-1" },
+      },
+    }));
+    const task = status.stages.flatMap(s => s.tasks).find(t => t.key === "inviteTeachers");
+    expect(task?.status).toBe("completed");
+  });
+
+  it("falls back to the manual/count-based signal when no upload exists at all (manual path, or a school predating uploads)", () => {
+    const status = computeSchoolLaunchStatus(makeInput({ counts: FULL_COUNTS }));
+    const task = status.stages.flatMap(s => s.tasks).find(t => t.key === "inviteParents");
+    expect(task?.status).toBe("completed");
+    const review = status.stages.flatMap(s => s.tasks).find(t => t.key === "parentInvitationReview");
+    expect(review?.status).toBe("not_applicable");
+  });
+
+  it("exposes the secondary manual-alternative action alongside the primary upload action", () => {
+    const status = computeSchoolLaunchStatus(makeInput());
+    const task = status.stages.flatMap(s => s.tasks).find(t => t.key === "uploadEnrolmentList");
+    expect(task?.actionType).toBe("upload");
+    expect(task?.secondaryActionHref).toBe("/onboarding/add-child");
+    expect(task?.secondaryActionLabel).toBe("Add manually instead");
   });
 });
 

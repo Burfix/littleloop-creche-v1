@@ -36,6 +36,7 @@ export interface AppUser {
   fcmToken?: string;
   createdAt: string;
   hasSeenOnboardingWelcome?: boolean; // owners only — gates the one-time /onboarding landing
+  hasSeenLaunchSuccess?: boolean; // owners only — gates the one-time "Your school is ready" transition
 }
 
 // ─── Children ────────────────────────────────────────────────────────────────
@@ -234,6 +235,11 @@ export interface SchoolLaunchTask {
   blockingReason?: string;
   actionType: LaunchTaskActionType;
   actionHref?: string;
+  // A lightweight alternative path shown alongside the primary action —
+  // e.g. an "upload" task also offers "Add manually instead" linking to
+  // the existing manual creation flow. Never a second required task.
+  secondaryActionHref?: string;
+  secondaryActionLabel?: string;
   notes?: string;
   sortOrder: number;
 }
@@ -294,6 +300,30 @@ export interface LaunchSession {
   notes?: string;
 }
 
+// ─── Data import uploads ─────────────────────────────────────────────────
+// Premium assisted alternative to manual entry — the owner uploads a file,
+// LittleLoop reviews and imports it by hand (no automated parsing pipeline
+// yet). One doc per submission; "replace file" creates a new doc rather
+// than mutating the old one, so there's always a submission history.
+
+export type LaunchUploadKind = "children" | "teachers" | "parents" | "feeStructure";
+
+export type LaunchUploadStatus = "submitted" | "under_review" | "needs_changes" | "accepted";
+
+export interface LaunchUpload {
+  id: string;
+  schoolId: string;
+  kind: LaunchUploadKind;
+  fileName: string;
+  fileUrl: string;
+  status: LaunchUploadStatus;
+  submittedAt: string;
+  submittedBy: string; // uid
+  reviewedAt?: string;
+  reviewedBy?: string; // uid
+  feedback?: string; // shown to the owner when status is needs_changes
+}
+
 /**
  * Manual status override for a task with no derivable signal (e.g. team
  * training completion, final readiness confirmation, go-live). Keyed by
@@ -346,4 +376,5 @@ export interface SchoolLaunchStatus {
   specialist?: ImplementationSpecialist;
   payment: SchoolLaunchPayment;
   nextSession?: LaunchSession;
+  uploads: Partial<Record<LaunchUploadKind, LaunchUpload>>;
 }
