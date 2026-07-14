@@ -23,14 +23,21 @@ const securityHeaders = [
       "default-src 'self'",
       // Firebase Auth, Firestore, Storage
       "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com https://firebasestorage.googleapis.com",
-      // Scripts: Next.js chunks + no inline eval in production
-      "script-src 'self' 'unsafe-inline'",
-      // Styles: Tailwind inlines styles at runtime
-      "style-src 'self' 'unsafe-inline'",
+      // Scripts: Next.js chunks + no inline eval in production. gstatic.com
+      // is required by public/firebase-messaging-sw.js, which runs in its
+      // own worker realm (inherits this CSP from its own response headers)
+      // and importScripts()'s the Firebase compat SDK from there — without
+      // this, the service worker fails to evaluate and push notifications
+      // silently never register.
+      "script-src 'self' 'unsafe-inline' https://www.gstatic.com",
+      // Styles: Tailwind inlines styles at runtime; fonts.googleapis.com
+      // serves the landing page's Google Fonts stylesheet
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       // Images: self + Firebase Storage + data URIs for avatars
       "img-src 'self' data: blob: https://firebasestorage.googleapis.com",
-      // Fonts: self only
-      "font-src 'self'",
+      // Fonts: self + the actual font files Google Fonts serves (separate
+      // host from the stylesheet above)
+      "font-src 'self' https://fonts.gstatic.com",
       // No object embeds
       "object-src 'none'",
       // Base URI locked to self
