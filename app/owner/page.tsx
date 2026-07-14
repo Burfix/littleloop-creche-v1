@@ -309,7 +309,7 @@ export default function OwnerDashboard() {
             />
             <AttendanceReport
               classes={classes}
-              children={children}
+              childRecords={children}
               dailyUpdates={todayUpdates}
             />
             <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
@@ -332,7 +332,7 @@ export default function OwnerDashboard() {
             <FinancialStats
               stats={stats}
               invoices={invoices}
-              children={children}
+              childRecords={children}
               parents={parents}
               schoolName={activeSchool?.name ?? ""}
             />
@@ -357,7 +357,7 @@ export default function OwnerDashboard() {
         {tab === "billing" && activeSchool && (
           <BillingTab
             invoices={invoices}
-            children={children}
+            childRecords={children}
             parents={parents}
             school={activeSchool}
             invoiceCursor={invoiceCursor}

@@ -15,11 +15,13 @@ const MOOD_LABEL: Record<string, string> = {
 
 interface AttendanceReportProps {
   classes: ClassRoom[];
-  children: Child[];
+  // Named childRecords (not `children`) to avoid colliding with React's
+  // reserved children prop, same convention as CreateInvoiceForm/InviteForm.
+  childRecords: Child[];
   dailyUpdates: DailyUpdate[];
 }
 
-export function AttendanceReport({ classes, children, dailyUpdates }: AttendanceReportProps) {
+export function AttendanceReport({ classes, childRecords, dailyUpdates }: AttendanceReportProps) {
   const [expanded, setExpanded] = useState(false);
   const [openClassId, setOpenClassId] = useState<string | null>(null);
 
@@ -27,7 +29,7 @@ export function AttendanceReport({ classes, children, dailyUpdates }: Attendance
   const updateByChildId = Object.fromEntries(dailyUpdates.map(u => [u.childId, u]));
   const childrenByClassId: Record<string, Child[]> = {};
 
-  for (const child of children) {
+  for (const child of childRecords) {
     const cId = child.classId ?? "__unassigned__";
     if (!childrenByClassId[cId]) childrenByClassId[cId] = [];
     childrenByClassId[cId].push(child);

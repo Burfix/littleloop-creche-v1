@@ -12,7 +12,9 @@ import { BillingPrerequisiteNotice } from "./BillingPrerequisiteNotice";
 
 interface BillingTabProps {
   invoices: Invoice[];
-  children: Child[];
+  // Named childRecords (not `children`) to avoid colliding with React's
+  // reserved children prop, same convention as CreateInvoiceForm/InviteForm.
+  childRecords: Child[];
   parents: AppUser[];
   school: School;
   invoiceCursor: QueryDocumentSnapshot<DocumentData> | null;
@@ -53,16 +55,16 @@ const STATUS_PILL: Record<string, string> = {
 };
 
 export function BillingTab({
-  invoices, children, parents, school,
+  invoices, childRecords, parents, school,
   hasMoreInvoices, loadingInvoices,
   onLoadMore, onInvoiceUpdate, onInvoiceCreated, onRequestInvite,
 }: BillingTabProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
 
-  const childMap = Object.fromEntries(children.map(c => [c.id, c]));
+  const childMap = Object.fromEntries(childRecords.map(c => [c.id, c]));
   const parentMap = Object.fromEntries(parents.map(p => [p.uid, p]));
 
-  const activeChildren = children.filter(c => c.deletionStatus !== "pending_erasure");
+  const activeChildren = childRecords.filter(c => c.deletionStatus !== "pending_erasure");
   const childrenWithParent = activeChildren.filter(c => (c.parentIds?.length ?? 0) > 0);
   const canCreateInvoice = childrenWithParent.length > 0;
 
