@@ -297,7 +297,7 @@ export default function ParentDashboard() {
 
               {!update && (
                 <p style={{ margin: "12px 0 0", fontSize: 13, opacity: 0.8 }}>
-                  No update yet today — check back after morning circle.
+                  No update yet today. Check back after morning circle.
                 </p>
               )}
             </div>

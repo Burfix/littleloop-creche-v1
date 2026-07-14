@@ -5,10 +5,17 @@
  * can initialise Firebase without exposing secrets.
  *
  * Runs automatically via the "prebuild" npm script on Vercel and locally.
+ *
+ * Plain CommonJS Node script (package.json has no "type": "module"), so
+ * require() here is correct, not legacy debt. The project-wide
+ * @typescript-eslint/no-require-imports rule is meant for app/lib source,
+ * not build tooling like this file.
  */
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require("fs");
 const path = require("path");
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 const required = [
   "NEXT_PUBLIC_FIREBASE_API_KEY",

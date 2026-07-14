@@ -12,11 +12,11 @@ import { resolveTenantSlugFromHost } from "@/lib/tenant";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "LittleLoop — The Operating System for South African Creches",
+  title: "LittleLoop: The Operating System for South African Creches",
   description: "Replace WhatsApp chaos and paper registers with one platform. Real-time parent updates, digital registers, owner dashboards. Built for South African creches.",
   manifest: "/manifest.json",
   openGraph: {
-    title: "LittleLoop — The Operating System for South African Creches",
+    title: "LittleLoop: The Operating System for South African Creches",
     description: "Replace WhatsApp chaos and paper registers with one platform.",
     url: "https://littleloop.app",
     siteName: "LittleLoop",

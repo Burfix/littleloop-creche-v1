@@ -64,7 +64,7 @@ export default function OnboardingClassesPage() {
 
   return (
     <div className="app-shell" style={{ padding: "32px 24px" }}>
-      <OnboardingProgressBar step={4} />
+      <OnboardingProgressBar step={3} label="Classes" />
 
       <h1 style={{ fontSize: 24, fontWeight: 700, margin: "0 0 8px" }}>
         Create your first class

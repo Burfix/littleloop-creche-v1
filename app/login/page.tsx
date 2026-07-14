@@ -32,7 +32,7 @@ export default function LoginPage() {
     try {
       if (resetMode) {
         await resetPassword(email);
-        toast.success("Reset link sent — check your email");
+        toast.success("Reset link sent. Check your email.");
         setResetMode(false);
       } else {
         await signIn(email, password);
@@ -44,7 +44,7 @@ export default function LoginPage() {
       const friendly =
         msg.includes("invalid-credential") ? "Incorrect email or password" :
         msg.includes("user-not-found") ? "No account found with that email" :
-        msg.includes("too-many-requests") ? "Too many attempts — try again later" :
+        msg.includes("too-many-requests") ? "Too many attempts. Try again later." :
         "Sign-in failed. Please try again.";
       toast.error(friendly);
     } finally {

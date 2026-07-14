@@ -603,7 +603,7 @@ export default function TeacherDashboard() {
               </button>
             </div>
             {tasks.length === 0 && (
-              <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No tasks yet — you&apos;re ahead!</p>
+              <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No tasks yet. You&apos;re ahead!</p>
             )}
             {tasks.map(task => (
               <div key={task.id} className="card"

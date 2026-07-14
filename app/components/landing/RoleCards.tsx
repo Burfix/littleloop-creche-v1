@@ -3,21 +3,21 @@ const ROLES = [
     icon: "👶",
     who: "For Parents",
     title: "See your child's whole day",
-    body: "From check-in to checkout, every meal, every mood, every moment — visible on your phone in real time.",
+    body: "From check-in to checkout, every meal, every mood, every moment, visible on your phone in real time.",
     features: ["Live daily updates", "Photo moments gallery", "Billing & payment history", "Direct chat with teachers"],
   },
   {
     icon: "👩‍🏫",
     who: "For Teachers",
     title: "Run your class without paperwork",
-    body: "Digital register, meal logging, mood tracking, and photo sharing — everything in one place, done in seconds.",
+    body: "Digital register, meal logging, mood tracking, and photo sharing. Everything in one place, done in seconds.",
     features: ["One-tap check-in", "Meal & mood logging", "Photo uploads to parents", "Daily task management"],
   },
   {
     icon: "🏫",
     who: "For Owners",
     title: "Run your business, not your inbox",
-    body: "Live attendance, fee collection status, outstanding payments, and staff management — all in your cockpit.",
+    body: "Live attendance, fee collection status, outstanding payments, and staff management, all in your cockpit.",
     features: ["Real-time attendance rate", "Revenue & outstanding fees", "Fee reminder automation", "Multi-branch support"],
   },
 ];
@@ -32,7 +32,7 @@ export function RoleCards() {
         Three dashboards.
       </h2>
       <p className="l-section-sub">
-        Every role gets exactly the tools they need — nothing more, nothing less.
+        Every role gets exactly the tools they need, nothing more, nothing less.
       </p>
 
       <div className="l-roles-grid">

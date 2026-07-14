@@ -36,6 +36,7 @@ export interface AppUser {
   fcmToken?: string;
   createdAt: string;
   hasSeenOnboardingWelcome?: boolean; // owners only — gates the one-time /onboarding landing
+  hasSeenLaunchSuccess?: boolean; // owners only — gates the one-time "Your school is ready" transition
 }
 
 // ─── Children ────────────────────────────────────────────────────────────────
@@ -177,4 +178,260 @@ export interface CockpitStats {
   outstandingFamilies: number;
   staffCount: number;
   photoConsentPending: number;
+}
+
+// ─── School Launch ("School Launch Package" paid onboarding) ─────────────────
+// See lib/school-launch.ts for the module that builds/derives these. Unlike
+// the original lib/onboarding.ts model (fully derived from data presence),
+// several fields here (specialist, payment, sessions, target date) cannot be
+// derived from anything the school does — they're set by the LittleLoop
+// implementation team. That data lives in a SchoolLaunchRecord, one per
+// school, stored separately from the school doc itself.
+
+export type LaunchStageKey =
+  | "welcome"
+  | "schoolProfile"
+  | "childrenImport"
+  | "classes"
+  | "teachers"
+  | "parents"
+  | "billingConfiguration"
+  | "teamTraining"
+  | "launchReadiness"
+  | "goLive";
+
+export type LaunchResponsibility = "school" | "littleloop" | "shared";
+
+export type LaunchTaskStatus =
+  | "not_started"
+  | "waiting_for_school"
+  | "submitted"
+  | "under_review"
+  | "needs_changes"
+  | "scheduled"
+  | "completed"
+  | "blocked"
+  | "not_applicable";
+
+export type LaunchTaskActionType =
+  | "manual_form"   // links to an existing manual creation flow
+  | "upload"        // CSV/spreadsheet import
+  | "external_link" // e.g. join a call, view a shared doc
+  | "confirmation"  // simple "mark done" acknowledgement
+  | "none";         // informational only — no owner action available
+
+export interface SchoolLaunchTask {
+  id: string;
+  key: string; // stable within a stage, e.g. "uploadEnrolmentList"
+  title: string;
+  description?: string;
+  stage: LaunchStageKey;
+  status: LaunchTaskStatus;
+  responsibility: LaunchResponsibility;
+  required: boolean; // required for launch vs. recommended after
+  completedAt?: string;
+  completedBy?: string; // uid
+  dueDate?: string;
+  blockingReason?: string;
+  actionType: LaunchTaskActionType;
+  actionHref?: string;
+  // A lightweight alternative path shown alongside the primary action —
+  // e.g. an "upload" task also offers "Add manually instead" linking to
+  // the existing manual creation flow. Never a second required task.
+  secondaryActionHref?: string;
+  secondaryActionLabel?: string;
+  notes?: string;
+  sortOrder: number;
+}
+
+export interface SchoolLaunchStage {
+  key: LaunchStageKey;
+  title: string;
+  description: string;
+  sortOrder: number;
+  tasks: SchoolLaunchTask[];
+}
+
+export type OnboardingPaymentStatus = "unpaid" | "invoiced" | "paid" | "waived";
+
+export interface SchoolLaunchPayment {
+  status: OnboardingPaymentStatus;
+  packageName: string; // customer-facing: "School Launch Package"
+  amountCents: number;
+  paidAt?: string;
+  invoiceReference?: string;
+  paymentReference?: string;
+}
+
+export interface ImplementationSpecialist {
+  id: string;
+  name: string;
+  role: string; // e.g. "Implementation Specialist"
+  initials: string;
+  avatarUrl?: string;
+  email?: string;
+  phone?: string; // for WhatsApp/call actions
+  supportHours?: string;
+}
+
+export type LaunchSessionType =
+  | "school_setup_call"
+  | "data_review"
+  | "teacher_training"
+  | "billing_review"
+  | "go_live_check";
+
+export type LaunchSessionStatus =
+  | "not_scheduled"
+  | "scheduled"
+  | "completed"
+  | "cancelled"
+  | "rescheduled";
+
+export interface LaunchSession {
+  id: string;
+  type: LaunchSessionType;
+  title: string;
+  status: LaunchSessionStatus;
+  scheduledAt?: string; // ISO datetime
+  durationMinutes?: number;
+  meetingLink?: string;
+  participants?: string[]; // display names or emails
+  notes?: string;
+}
+
+// ─── Data import uploads ─────────────────────────────────────────────────
+// Premium assisted alternative to manual entry — the owner uploads a file,
+// LittleLoop reviews and imports it by hand (no automated parsing pipeline
+// yet). One doc per submission; "replace file" creates a new doc rather
+// than mutating the old one, so there's always a submission history.
+
+export type LaunchUploadKind = "children" | "teachers" | "parents" | "feeStructure";
+
+export type LaunchUploadStatus = "submitted" | "under_review" | "needs_changes" | "accepted";
+
+export interface LaunchUpload {
+  id: string;
+  schoolId: string;
+  kind: LaunchUploadKind;
+  fileName: string;
+  fileUrl: string;
+  status: LaunchUploadStatus;
+  submittedAt: string;
+  submittedBy: string; // uid
+  reviewedAt?: string;
+  reviewedBy?: string; // uid
+  feedback?: string; // shown to the owner when status is needs_changes
+}
+
+/**
+ * Manual status override for a task with no derivable signal (e.g. team
+ * training completion, final readiness confirmation, go-live). Keyed by
+ * task key on SchoolLaunchRecord.taskOverrides. Set by LittleLoop staff —
+ * see lib/school-launch.ts normalization for how this combines with
+ * derived signals.
+ */
+export interface LaunchTaskOverride {
+  status: LaunchTaskStatus;
+  completedAt?: string;
+  completedBy?: string;
+  blockingReason?: string;
+  notes?: string;
+}
+
+/**
+ * Stored once per school (doc id == schoolId, collection "schoolLaunches").
+ * Holds everything about a school's launch that cannot be computed from
+ * existing data — set by the LittleLoop team, read-only for owners. Absent
+ * for any school that predates this feature; lib/school-launch.ts
+ * normalizes that to safe defaults rather than treating it as an error.
+ */
+export interface SchoolLaunchRecord {
+  schoolId: string;
+  targetGoLiveDate?: string; // ISO date
+  specialist?: ImplementationSpecialist;
+  payment: SchoolLaunchPayment;
+  sessions: LaunchSession[];
+  taskOverrides: Record<string, LaunchTaskOverride>;
+  launchedAt?: string; // set when the Go live task is marked complete
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Computed, not stored — see computeSchoolLaunchStatus in
+ * lib/school-launch.ts. progressPct/isComplete/currentStage/blockers are
+ * deliberately derived on every read so they can never drift from the
+ * underlying tasks.
+ */
+export interface SchoolLaunchStatus {
+  stages: SchoolLaunchStage[];
+  completedRequiredCount: number;
+  totalRequiredCount: number;
+  progressPct: number; // 0-100
+  isComplete: boolean;
+  currentStage: SchoolLaunchStage | null;
+  blockers: SchoolLaunchTask[];
+  targetGoLiveDate?: string;
+  specialist?: ImplementationSpecialist;
+  payment: SchoolLaunchPayment;
+  nextSession?: LaunchSession;
+  uploads: Partial<Record<LaunchUploadKind, LaunchUpload>>;
+}
+
+// ─── Launch admin audit trail ────────────────────────────────────────────
+// Every staff-side write to a school's launch record or uploads (the
+// staff admin surface in app/admin) is logged here — immutable,
+// superadmin-only, one collection across all schools (see firestore.rules
+// launchAuditLog/{entryId}). This is what lets an enterprise prospect or
+// internal audit answer "who changed this and when" for paid onboarding
+// data, not just "what does it look like now."
+
+export type LaunchAuditAction =
+  | "specialist_updated"
+  | "payment_updated"
+  | "target_date_updated"
+  | "session_created"
+  | "session_updated"
+  | "session_removed"
+  | "task_override_set"
+  | "task_override_cleared"
+  | "upload_reviewed"
+  | "go_live_marked";
+
+export interface LaunchAuditLogEntry {
+  id: string;
+  schoolId: string;
+  action: LaunchAuditAction;
+  summary: string; // human-readable one-liner, e.g. "Payment marked as paid"
+  actorUid: string;
+  actorName: string;
+  createdAt: string;
+  metadata?: Record<string, string>; // small before/after context for the summary
+}
+
+// ─── Owner-facing launch notifications ─────────────────────────────────────
+// The audit log above is staff-only history. This is the other side of the
+// same events — a durable, owner-visible record so "did anything change on
+// my launch?" is answerable even if a push notification was never granted,
+// missed, or the browser tab was closed at the time. See
+// lib/launch-notifications.ts.
+
+export type LaunchNotificationCategory =
+  | "specialist_assigned"
+  | "session_scheduled"
+  | "session_updated"
+  | "upload_reviewed"
+  | "payment_updated"
+  | "go_live";
+
+export interface LaunchNotification {
+  id: string;
+  schoolId: string;
+  category: LaunchNotificationCategory;
+  title: string;
+  body: string;
+  link?: string; // in-app route to jump to, e.g. "/owner"
+  createdAt: string;
+  readAt?: string;
 }

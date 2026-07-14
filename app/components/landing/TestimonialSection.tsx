@@ -4,7 +4,7 @@ export function TestimonialSection() {
       <div className="l-testimonial-wrap">
         <blockquote>
           &ldquo;Parents used to message us every afternoon asking how the day went. Now they
-          just know — before pickup. That&apos;s what LittleLoop changed for us.&rdquo;
+          just know, before pickup. That&apos;s what LittleLoop changed for us.&rdquo;
         </blockquote>
         <div className="l-testimonial-credit">
           <div className="l-testimonial-av" aria-hidden="true">P</div>

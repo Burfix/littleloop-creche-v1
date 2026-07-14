@@ -142,6 +142,56 @@ service cloud.firestore {
       allow delete: if isOwnerOf(resource.data.schoolId) || isSuperAdmin();
     }
 
+    // ── School Launch ────────────────────────────────────────────
+    // Doc id == schoolId. Specialist assignment, payment status, sessions
+    // and target go-live date are set by the LittleLoop implementation
+    // team, not by the school — owners get read-only access so the launch
+    // workspace UI can display it.
+    match /schoolLaunches/{schoolId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || isOwnerOf(schoolId));
+      allow create, update, delete: if isSuperAdmin();
+    }
+
+    // ── Launch Uploads (data import UX) ──────────────────────────
+    // Owners can submit files (children/teacher/parent lists, fee
+    // structure) for LittleLoop to review and import by hand — this is
+    // the one owner-writable piece of the launch data model. Only
+    // LittleLoop can change status/feedback (the review step) or delete a
+    // submission; "replace file" creates a new doc rather than mutating
+    // an existing one, so there's always a submission history.
+    match /launchUploads/{uploadId} {
+      allow read: if isSignedIn() && (
+        isSuperAdmin() || isOwnerOf(resource.data.schoolId)
+      );
+      allow create: if isOwnerOf(request.resource.data.schoolId) &&
+        request.resource.data.status == 'submitted';
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // ── Launch Notifications ─────────────────────────────────────
+    // Durable, owner-visible record of launch events (specialist assigned,
+    // session scheduled, upload reviewed, payment updated, go-live) —
+    // written only by staff (superadmin), read by the owning school's
+    // owner, who may only ever touch the readAt field (mark as read).
+    match /launchNotifications/{notificationId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || isOwnerOf(resource.data.schoolId));
+      allow create: if isSuperAdmin();
+      allow update: if isOwnerOf(resource.data.schoolId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
+      allow delete: if isSuperAdmin();
+    }
+
+    // ── Launch Audit Log ─────────────────────────────────────────
+    // One entry per staff write to a school's launch record/uploads
+    // (specialist, payment, sessions, task overrides, upload review,
+    // go-live). Staff-only, immutable — never updated or deleted, and
+    // never readable by school owners (this is an internal LittleLoop
+    // operational log, not part of the owner-facing launch summary).
+    match /launchAuditLog/{entryId} {
+      allow read, create: if isSuperAdmin();
+      allow update, delete: if false;
+    }
+
     // ── Messages ─────────────────────────────────────────────────
     // threadId format: {teacherId}_{parentId}_{childId}
     // Only the two participants in the thread can read it.

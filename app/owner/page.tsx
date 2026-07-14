@@ -13,9 +13,11 @@ import {
   getTeachersForSchool,
   getDailyUpdatesForSchoolDate,
   getClassesForSchool,
+  updateUser,
 } from "@/lib/db";
-import { getOnboardingStatus, markStepDone, type OnboardingStatus } from "@/lib/onboarding";
-import type { AppUser, Child, ClassRoom, CockpitStats, DailyUpdate, Invoice, School } from "@/lib/types";
+import { getSchoolLaunchStatus } from "@/lib/school-launch";
+import { registerForPushNotifications } from "@/lib/notifications";
+import type { AppUser, Child, ClassRoom, CockpitStats, DailyUpdate, Invoice, School, SchoolLaunchStatus } from "@/lib/types";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { BarChart2, CreditCard, Settings, LogOut, UserPlus, Baby, Users } from "lucide-react";
@@ -24,7 +26,12 @@ import { AttendanceReport } from "./components/AttendanceReport";
 import { FinancialStats } from "./components/FinancialStats";
 import { BillingTab } from "./components/BillingTab";
 import { SettingsTab } from "./components/SettingsTab";
-import { OnboardingChecklist } from "./components/OnboardingChecklist";
+import { PageHeader } from "./components/PageHeader";
+import { NotificationBell } from "./components/NotificationBell";
+import { SchoolLaunchWorkspace } from "./components/launch/SchoolLaunchWorkspace";
+import { SuccessPanel } from "./components/launch/SuccessPanel";
+import { LoadingSkeleton } from "./components/launch/LoadingSkeleton";
+import { InlineErrorState } from "./components/InlineErrorState";
 
 type Tab = "overview" | "billing" | "settings";
 
@@ -43,11 +50,15 @@ export default function OwnerDashboard() {
   const [teachers, setTeachers] = useState<AppUser[]>([]);
   const [classes, setClasses] = useState<ClassRoom[]>([]);
   const [todayUpdates, setTodayUpdates] = useState<DailyUpdate[]>([]);
-  const [onboarding, setOnboarding] = useState<OnboardingStatus | null>(null);
+  const [launchStatus, setLaunchStatus] = useState<SchoolLaunchStatus | null>(null);
+  const [launchStatusLoading, setLaunchStatusLoading] = useState(true);
+  const [hasSeenLaunchSuccess, setHasSeenLaunchSuccess] = useState(false);
   const [invoiceCursor, setInvoiceCursor] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMoreInvoices, setHasMoreInvoices] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     if (!appUser) { router.replace("/login"); return; }
@@ -60,6 +71,7 @@ export default function OwnerDashboard() {
     async function loadDashboard() {
       if (!schoolId) { if (!cancelled) setLoading(false); return; }
 
+      if (!cancelled) setLoadError(null);
       try {
         const today = new Date().toISOString().slice(0, 10);
         const [resolvedSchool, s, invoicePage, schoolParents, schoolTeachers, schoolClasses, updates] = await Promise.all([
@@ -71,9 +83,9 @@ export default function OwnerDashboard() {
           getClassesForSchool(schoolId),
           getDailyUpdatesForSchoolDate(schoolId, today),
         ]);
-        const [childPage, onboardingStatus] = await Promise.all([
+        const [childPage, launchStatusResult] = await Promise.all([
           getChildrenForSchoolPage(schoolId, { includePendingErasure: true }),
-          getOnboardingStatus(schoolId, resolvedSchool),
+          getSchoolLaunchStatus(schoolId, resolvedSchool, appUser),
         ]);
 
         if (cancelled) return;
@@ -85,17 +97,78 @@ export default function OwnerDashboard() {
         setTeachers(schoolTeachers);
         setClasses(schoolClasses);
         setTodayUpdates(updates);
-        setOnboarding(onboardingStatus);
+        setLaunchStatus(launchStatusResult);
         setInvoiceCursor(invoicePage.nextCursor);
         setHasMoreInvoices(invoicePage.hasMore);
+      } catch (err) {
+        console.error("Failed to load owner dashboard", { schoolId, err });
+        if (!cancelled) setLoadError("We couldn't load your cockpit. Your data is safe, this is a connection issue.");
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setLaunchStatusLoading(false);
+        }
       }
     }
 
     void loadDashboard();
+
+    // Register for push notifications — silent if browser doesn't support
+    // it or permission is declined (see lib/notifications.ts). Mirrors
+    // app/parent/page.tsx; owners never had this call before, which meant
+    // /api/notifications/send had nothing to send to even when a staff
+    // action tried to reach them.
+    registerForPushNotifications(appUser.uid);
+
     return () => { cancelled = true; };
-  }, [appUser, school, schoolLoading, router]);
+  }, [appUser, school, schoolLoading, router, reloadToken]);
+
+  const handleRetryLoad = () => {
+    setLoading(true);
+    setLaunchStatusLoading(true);
+    setLoadError(null);
+    setReloadToken(t => t + 1);
+  };
+
+  // appUser comes from a one-time getDoc in auth-context, not a live
+  // listener (see lib/auth-context.tsx) — it won't reactively update after
+  // our own updateUser() write below. Seed local state from it once it's
+  // available; the acknowledgment handler then flips local state directly
+  // so the transition still feels instant.
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      if (appUser?.hasSeenLaunchSuccess) setHasSeenLaunchSuccess(true);
+    });
+  }, [appUser]);
+
+  // Fire-and-forget, same philosophy as hasSeenOnboardingWelcome in
+  // app/onboarding/page.tsx: if this write fails, the owner just sees the
+  // success screen once more next login — not worth blocking navigation.
+  const acknowledgeLaunchSuccess = () => {
+    setHasSeenLaunchSuccess(true);
+    if (appUser) void updateUser(appUser.uid, { hasSeenLaunchSuccess: true });
+  };
+
+  // Re-derives the full launch status from scratch rather than optimistically
+  // patching the nested stage/task tree — Firestore's getCountFromServer is
+  // cheap, and this guarantees the workspace can never drift from reality
+  // (same philosophy as the old markStepDone, taken one step further).
+  const refreshLaunchStatus = async () => {
+    const schoolId = school?.id ?? appUser?.schoolId;
+    if (!schoolId) return;
+    try {
+      const resolvedSchool = school?.id === schoolId ? school : (ownerSchool ?? await getSchool(schoolId));
+      const next = await getSchoolLaunchStatus(schoolId, resolvedSchool, appUser);
+      setLaunchStatus(next);
+    } catch (err) {
+      // Non-fatal — the workspace just shows slightly stale data until the
+      // next full page load re-derives it. Still surfaced so the owner
+      // knows a refresh attempt didn't land, rather than silently
+      // continuing to show pre-action data with no signal anything failed.
+      console.error("Failed to refresh launch status", { schoolId, err });
+      toast.error("Couldn't refresh your School Launch. Showing your last known status.");
+    }
+  };
 
   const loadMoreInvoices = async () => {
     const schoolId = school?.id ?? appUser?.schoolId;
@@ -153,22 +226,22 @@ export default function OwnerDashboard() {
   const handleChildAdded = (child: Child) => {
     setChildren(prev => [child, ...prev]);
     setStats(prev => prev ? { ...prev, totalChildren: prev.totalChildren + 1 } : prev);
-    setOnboarding(prev => prev ? markStepDone(prev, "firstChild") : prev);
+    void refreshLaunchStatus();
   };
 
   // ClassesSection reports its full class list on every load and every
   // change (create/update/delete), so this both keeps this page's `classes`
   // state fresh (previously it only reflected the initial page load) and
-  // marks the "classes" onboarding step done the moment one exists.
+  // refreshes the launch workspace the moment a class exists.
   const handleClassesChanged = (updatedClasses: ClassRoom[]) => {
     setClasses(updatedClasses);
     if (updatedClasses.length > 0) {
-      setOnboarding(prev => prev ? markStepDone(prev, "classes") : prev);
+      void refreshLaunchStatus();
     }
   };
 
-  const handleInvited = (role: "teacher" | "parent") => {
-    setOnboarding(prev => prev ? markStepDone(prev, role === "parent" ? "parents" : "teachers") : prev);
+  const handleInvited = () => {
+    void refreshLaunchStatus();
   };
 
   const activeSchool = school ?? ownerSchool;
@@ -177,35 +250,58 @@ export default function OwnerDashboard() {
     return <div className="page-loader"><div className="spinner" /></div>;
   }
 
+  if (loadError) {
+    return (
+      <div className="app-shell" style={{ justifyContent: "center", padding: "32px 24px" }}>
+        <InlineErrorState message={loadError} onRetry={handleRetryLoad} />
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell app-shell--wide">
       {/* Header */}
-      <div style={{
-        padding: "16px 20px 12px",
-        borderBottom: "1px solid var(--border)",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-      }}>
-        <div>
-          <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>Owner cockpit</p>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{activeSchool?.name ?? "School setup"}</h2>
-        </div>
-        <button onClick={handleSignOut}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>
-          <LogOut size={18} />
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Owner cockpit"
+        title={activeSchool?.name ?? "School setup"}
+        actions={
+          <>
+            <NotificationBell schoolId={activeSchool?.id ?? appUser.schoolId ?? ""} />
+            <button onClick={handleSignOut}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>
+              <LogOut size={18} />
+            </button>
+          </>
+        }
+      />
 
       <div className="page-content" style={{ padding: "16px 20px" }}>
 
         {/* ── OVERVIEW TAB ── */}
-        {tab === "overview" && stats && onboarding && !onboarding.isComplete && (
-          <OnboardingChecklist
+        {tab === "overview" && launchStatusLoading && <LoadingSkeleton />}
+        {tab === "overview" && !launchStatusLoading && stats && launchStatus && !launchStatus.isComplete && (
+          <SchoolLaunchWorkspace
             schoolName={activeSchool?.name ?? "your school"}
-            status={onboarding}
-            onStepClick={(targetTab) => setTab(targetTab)}
+            status={launchStatus}
+            schoolId={activeSchool?.id ?? appUser.schoolId ?? ""}
+            onRefresh={() => void refreshLaunchStatus()}
           />
         )}
-        {tab === "overview" && stats && onboarding?.isComplete && (
+        {tab === "overview" && !launchStatusLoading && stats && launchStatus?.isComplete && !hasSeenLaunchSuccess && (
+          <SuccessPanel
+            schoolName={activeSchool?.name ?? "your school"}
+            childCount={stats.totalChildren}
+            teacherCount={teachers.length}
+            parentCount={parents.length}
+            billingActive={invoices.length > 0}
+            onOpenCockpit={acknowledgeLaunchSuccess}
+            onViewSummary={() => {
+              acknowledgeLaunchSuccess();
+              router.push("/owner/launch-summary");
+            }}
+          />
+        )}
+        {tab === "overview" && !launchStatusLoading && stats && launchStatus?.isComplete && hasSeenLaunchSuccess && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <AttendanceCard
               checkedInToday={stats.checkedInToday}
@@ -213,7 +309,7 @@ export default function OwnerDashboard() {
             />
             <AttendanceReport
               classes={classes}
-              children={children}
+              childRecords={children}
               dailyUpdates={todayUpdates}
             />
             <div className="card" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
@@ -236,7 +332,7 @@ export default function OwnerDashboard() {
             <FinancialStats
               stats={stats}
               invoices={invoices}
-              children={children}
+              childRecords={children}
               parents={parents}
               schoolName={activeSchool?.name ?? ""}
             />
@@ -261,7 +357,7 @@ export default function OwnerDashboard() {
         {tab === "billing" && activeSchool && (
           <BillingTab
             invoices={invoices}
-            children={children}
+            childRecords={children}
             parents={parents}
             school={activeSchool}
             invoiceCursor={invoiceCursor}
@@ -271,8 +367,9 @@ export default function OwnerDashboard() {
             onInvoiceUpdate={updated => setInvoices(prev => prev.map(i => i.id === updated.id ? updated : i))}
             onInvoiceCreated={inv => {
               setInvoices(prev => [inv, ...prev]);
-              setOnboarding(prev => prev ? markStepDone(prev, "billing") : prev);
+              void refreshLaunchStatus();
             }}
+            onRequestInvite={() => setTab("settings")}
           />
         )}
 

@@ -59,7 +59,7 @@ export function AddSchoolModal({ firebaseUser, onCreated, onClose }: AddSchoolMo
       <ModalShell onClose={onClose}>
         <div className="card" style={{ borderLeft: "3px solid var(--success)", background: "#f0fdf4" }}>
           <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: "#166534" }}>
-            ✓ School created — setup email sent to owner
+            ✓ School created. Setup email sent to owner.
           </p>
           <p style={{ margin: "4px 0 0", fontSize: 12, color: "#166534" }}>
             They&apos;ll receive an email to set their password and access their dashboard.

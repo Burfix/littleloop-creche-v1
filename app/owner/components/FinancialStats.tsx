@@ -7,7 +7,9 @@ import type { CockpitStats, Invoice, Child, AppUser } from "@/lib/types";
 interface FinancialStatsProps {
   stats: CockpitStats;
   invoices: Invoice[];
-  children: Child[];
+  // Named childRecords (not `children`) to avoid colliding with React's
+  // reserved children prop, same convention as CreateInvoiceForm/InviteForm.
+  childRecords: Child[];
   parents: AppUser[];
   schoolName: string;
 }
@@ -26,9 +28,9 @@ function buildReminderMessage(
   return `Hi ${parentName},\n\nThis is a friendly reminder that ${childName}'s school fees of ${amount} for ${monthLabel} are currently outstanding at ${schoolName}.\n\nPlease make payment at your earliest convenience.\n\nThank you 🙏`;
 }
 
-export function FinancialStats({ stats, invoices, children, parents, schoolName }: FinancialStatsProps) {
+export function FinancialStats({ stats, invoices, childRecords, parents, schoolName }: FinancialStatsProps) {
   const currentMonth = format(new Date(), "MMMM yyyy");
-  const childMap = Object.fromEntries(children.map(c => [c.id, c]));
+  const childMap = Object.fromEntries(childRecords.map(c => [c.id, c]));
   const parentMap = Object.fromEntries(parents.map(p => [p.uid, p]));
 
   const outstandingWithPhone = invoices

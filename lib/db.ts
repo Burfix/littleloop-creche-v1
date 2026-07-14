@@ -129,6 +129,23 @@ export async function getParentsForSchool(schoolId: string): Promise<AppUser[]> 
   return snap.docs.map(d => ({ ...d.data(), uid: d.id, createdAt: toDate(d.data().createdAt) } as AppUser));
 }
 
+// One owner per school today (AppUser.schoolId is singular, matching the
+// rest of the tenant model) — used to target push/in-app launch
+// notifications at the right person without the caller needing to already
+// know their uid.
+export async function getOwnerForSchool(schoolId: string): Promise<AppUser | null> {
+  const q = query(
+    collection(db, "users"),
+    where("schoolId", "==", schoolId),
+    where("role", "==", "owner"),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { ...d.data(), uid: d.id, createdAt: toDate(d.data().createdAt) } as AppUser;
+}
+
 export async function getAllUsers(): Promise<AppUser[]> {
   const snap = await getDocs(collection(db, "users"));
   return snap.docs.map(d => ({ ...d.data(), uid: d.id, createdAt: toDate(d.data().createdAt) } as AppUser));
