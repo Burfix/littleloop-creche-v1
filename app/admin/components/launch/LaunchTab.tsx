@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChevronLeft } from "lucide-react";
+import type { User } from "firebase/auth";
 import type { AppUser, School } from "@/lib/types";
 import { getSchoolLaunchAdminSummaries, type SchoolLaunchAdminSummary } from "@/lib/school-launch-admin";
 import { ProgressBar } from "../../../owner/components/launch/ProgressBar";
@@ -10,6 +11,7 @@ import { SchoolLaunchAdminPanel } from "./SchoolLaunchAdminPanel";
 interface LaunchTabProps {
   schools: School[];
   appUser: AppUser;
+  firebaseUser: User | null;
 }
 
 const PAYMENT_PILL: Record<SchoolLaunchAdminSummary["paymentStatus"], string> = {
@@ -19,7 +21,7 @@ const PAYMENT_PILL: Record<SchoolLaunchAdminSummary["paymentStatus"], string> = 
   waived: "pill-blue",
 };
 
-export function LaunchTab({ schools, appUser }: LaunchTabProps) {
+export function LaunchTab({ schools, appUser, firebaseUser }: LaunchTabProps) {
   const [summaries, setSummaries] = useState<Record<string, SchoolLaunchAdminSummary>>({});
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<School | null>(null);
@@ -44,7 +46,7 @@ export function LaunchTab({ schools, appUser }: LaunchTabProps) {
           <ChevronLeft size={14} /> All schools
         </button>
         <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{selected.name}</h3>
-        <SchoolLaunchAdminPanel school={selected} appUser={appUser} />
+        <SchoolLaunchAdminPanel school={selected} appUser={appUser} firebaseUser={firebaseUser} />
       </div>
     );
   }

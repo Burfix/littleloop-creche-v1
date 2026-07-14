@@ -168,6 +168,19 @@ service cloud.firestore {
       allow update, delete: if isSuperAdmin();
     }
 
+    // ── Launch Notifications ─────────────────────────────────────
+    // Durable, owner-visible record of launch events (specialist assigned,
+    // session scheduled, upload reviewed, payment updated, go-live) —
+    // written only by staff (superadmin), read by the owning school's
+    // owner, who may only ever touch the readAt field (mark as read).
+    match /launchNotifications/{notificationId} {
+      allow read: if isSignedIn() && (isSuperAdmin() || isOwnerOf(resource.data.schoolId));
+      allow create: if isSuperAdmin();
+      allow update: if isOwnerOf(resource.data.schoolId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readAt']);
+      allow delete: if isSuperAdmin();
+    }
+
     // ── Launch Audit Log ─────────────────────────────────────────
     // One entry per staff write to a school's launch record/uploads
     // (specialist, payment, sessions, task overrides, upload review,

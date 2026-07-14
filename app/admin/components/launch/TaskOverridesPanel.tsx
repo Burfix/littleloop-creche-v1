@@ -3,6 +3,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { Rocket } from "lucide-react";
+import type { User } from "firebase/auth";
 import type { LaunchTaskStatus, SchoolLaunchStage, SchoolLaunchRecord } from "@/lib/types";
 import { setTaskOverride, markSchoolGoLive, type AdminActor } from "@/lib/school-launch-admin";
 import { StatusBadge } from "../../../owner/components/launch/StatusBadge";
@@ -12,6 +13,7 @@ interface TaskOverridesPanelProps {
   stages: SchoolLaunchStage[];
   record: SchoolLaunchRecord;
   actor: AdminActor;
+  firebaseUser: User | null;
   onSaved: () => void;
 }
 
@@ -92,7 +94,7 @@ function OverrideRow({ schoolId, taskKey, currentStatus, currentNotes, actor, on
 // purely because LittleLoop staff, not the school, are the ones who know
 // whether training happened, whether the school is truly ready, and
 // whether it's actually live.
-export function TaskOverridesPanel({ schoolId, stages, record, actor, onSaved }: TaskOverridesPanelProps) {
+export function TaskOverridesPanel({ schoolId, stages, record, actor, firebaseUser, onSaved }: TaskOverridesPanelProps) {
   const training = findTask(stages, "completeTeacherTraining");
   const readiness = findTask(stages, "finalReadinessConfirmation");
   const [goingLive, setGoingLive] = useState(false);
@@ -101,8 +103,9 @@ export function TaskOverridesPanel({ schoolId, stages, record, actor, onSaved }:
     if (!confirm("Mark this school as live? This flips the school over to its normal operational dashboard.")) return;
     setGoingLive(true);
     try {
-      await markSchoolGoLive(schoolId, actor);
-      toast.success("School marked as live 🎉");
+      const idToken = await firebaseUser?.getIdToken();
+      await markSchoolGoLive(schoolId, actor, idToken);
+      toast.success("School marked as live");
       onSaved();
     } catch {
       toast.error("Couldn't save — please try again");

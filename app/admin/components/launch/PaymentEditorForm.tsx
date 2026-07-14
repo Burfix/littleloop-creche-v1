@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import toast from "react-hot-toast";
+import type { User } from "firebase/auth";
 import type { OnboardingPaymentStatus, SchoolLaunchPayment } from "@/lib/types";
 import { DEFAULT_LAUNCH_PACKAGE_NAME } from "@/lib/school-launch";
 import { updatePayment, type AdminActor } from "@/lib/school-launch-admin";
@@ -10,12 +11,13 @@ interface PaymentEditorFormProps {
   schoolId: string;
   payment: SchoolLaunchPayment;
   actor: AdminActor;
+  firebaseUser: User | null;
   onSaved: () => void;
 }
 
 const STATUS_OPTIONS: OnboardingPaymentStatus[] = ["unpaid", "invoiced", "paid", "waived"];
 
-export function PaymentEditorForm({ schoolId, payment, actor, onSaved }: PaymentEditorFormProps) {
+export function PaymentEditorForm({ schoolId, payment, actor, firebaseUser, onSaved }: PaymentEditorFormProps) {
   const [status, setStatus] = useState<OnboardingPaymentStatus>(payment.status);
   const [amountRand, setAmountRand] = useState(payment.amountCents > 0 ? String(payment.amountCents / 100) : "");
   const [invoiceReference, setInvoiceReference] = useState(payment.invoiceReference ?? "");
@@ -25,6 +27,7 @@ export function PaymentEditorForm({ schoolId, payment, actor, onSaved }: Payment
   const handleSave = async () => {
     setSaving(true);
     try {
+      const idToken = await firebaseUser?.getIdToken();
       const amountCents = amountRand.trim() ? Math.round(parseFloat(amountRand) * 100) : 0;
       await updatePayment(schoolId, {
         packageName: payment.packageName || DEFAULT_LAUNCH_PACKAGE_NAME,
@@ -33,7 +36,7 @@ export function PaymentEditorForm({ schoolId, payment, actor, onSaved }: Payment
         invoiceReference: invoiceReference.trim() || undefined,
         paymentReference: paymentReference.trim() || undefined,
         paidAt: payment.paidAt,
-      }, actor);
+      }, actor, idToken);
       toast.success("Payment updated");
       onSaved();
     } catch {

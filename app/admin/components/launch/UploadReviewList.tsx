@@ -3,6 +3,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { CircleCheck, FileText } from "lucide-react";
+import type { User } from "firebase/auth";
 import type { LaunchUpload, LaunchUploadKind } from "@/lib/types";
 import { reviewLaunchUpload, type AdminActor } from "@/lib/school-launch-admin";
 import { StatusBadge } from "../../../owner/components/launch/StatusBadge";
@@ -12,6 +13,7 @@ interface UploadReviewListProps {
   reviewerUid: string;
   uploads: Partial<Record<LaunchUploadKind, LaunchUpload>>;
   actor: AdminActor;
+  firebaseUser: User | null;
   onSaved: () => void;
 }
 
@@ -24,8 +26,8 @@ const KIND_LABELS: Record<LaunchUploadKind, string> = {
 
 const ALL_KINDS: LaunchUploadKind[] = ["children", "teachers", "parents", "feeStructure"];
 
-function UploadRow({ schoolId, reviewerUid, kind, upload, actor, onSaved }: {
-  schoolId: string; reviewerUid: string; kind: LaunchUploadKind; upload?: LaunchUpload; actor: AdminActor; onSaved: () => void;
+function UploadRow({ schoolId, reviewerUid, kind, upload, actor, firebaseUser, onSaved }: {
+  schoolId: string; reviewerUid: string; kind: LaunchUploadKind; upload?: LaunchUpload; actor: AdminActor; firebaseUser: User | null; onSaved: () => void;
 }) {
   const [feedback, setFeedback] = useState("");
   const [showFeedback, setShowFeedback] = useState(false);
@@ -37,7 +39,8 @@ function UploadRow({ schoolId, reviewerUid, kind, upload, actor, onSaved }: {
     if (!upload) return;
     setSaving(true);
     try {
-      await reviewLaunchUpload(upload.id, schoolId, "accepted", reviewerUid, actor);
+      const idToken = await firebaseUser?.getIdToken();
+      await reviewLaunchUpload(upload.id, schoolId, "accepted", reviewerUid, actor, undefined, idToken);
       toast.success(`${KIND_LABELS[kind]} accepted`);
       onSaved();
     } catch {
@@ -51,7 +54,8 @@ function UploadRow({ schoolId, reviewerUid, kind, upload, actor, onSaved }: {
     if (!upload) return;
     setSaving(true);
     try {
-      await reviewLaunchUpload(upload.id, schoolId, "needs_changes", reviewerUid, actor, feedback.trim() || undefined);
+      const idToken = await firebaseUser?.getIdToken();
+      await reviewLaunchUpload(upload.id, schoolId, "needs_changes", reviewerUid, actor, feedback.trim() || undefined, idToken);
       toast.success(`Sent back for changes`);
       setShowFeedback(false);
       setFeedback("");
@@ -114,12 +118,12 @@ function UploadRow({ schoolId, reviewerUid, kind, upload, actor, onSaved }: {
   );
 }
 
-export function UploadReviewList({ schoolId, reviewerUid, uploads, actor, onSaved }: UploadReviewListProps) {
+export function UploadReviewList({ schoolId, reviewerUid, uploads, actor, firebaseUser, onSaved }: UploadReviewListProps) {
   return (
     <div className="card" style={{ display: "flex", flexDirection: "column" }}>
       <h4 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 700 }}>Data submissions</h4>
       {ALL_KINDS.map(kind => (
-        <UploadRow key={kind} schoolId={schoolId} reviewerUid={reviewerUid} kind={kind} upload={uploads[kind]} actor={actor} onSaved={onSaved} />
+        <UploadRow key={kind} schoolId={schoolId} reviewerUid={reviewerUid} kind={kind} upload={uploads[kind]} actor={actor} firebaseUser={firebaseUser} onSaved={onSaved} />
       ))}
     </div>
   );

@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     }
 
-    const { targetUid, title, body } = await req.json();
+    const { targetUid, title, body, link } = await req.json();
 
     if (!targetUid || typeof targetUid !== "string") {
       return NextResponse.json({ error: "targetUid required" }, { status: 400 });
@@ -46,7 +46,9 @@ export async function POST(req: NextRequest) {
           badge: "/icon-192.png",
         },
         fcmOptions: {
-          link: "/parent",
+          // Defaults to the pre-existing parent chat behavior — callers
+          // (e.g. launch notifications) can pass their own in-app route.
+          link: typeof link === "string" && link ? link : "/parent",
         },
       },
     });

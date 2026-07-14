@@ -409,3 +409,29 @@ export interface LaunchAuditLogEntry {
   createdAt: string;
   metadata?: Record<string, string>; // small before/after context for the summary
 }
+
+// ─── Owner-facing launch notifications ─────────────────────────────────────
+// The audit log above is staff-only history. This is the other side of the
+// same events — a durable, owner-visible record so "did anything change on
+// my launch?" is answerable even if a push notification was never granted,
+// missed, or the browser tab was closed at the time. See
+// lib/launch-notifications.ts.
+
+export type LaunchNotificationCategory =
+  | "specialist_assigned"
+  | "session_scheduled"
+  | "session_updated"
+  | "upload_reviewed"
+  | "payment_updated"
+  | "go_live";
+
+export interface LaunchNotification {
+  id: string;
+  schoolId: string;
+  category: LaunchNotificationCategory;
+  title: string;
+  body: string;
+  link?: string; // in-app route to jump to, e.g. "/owner"
+  createdAt: string;
+  readAt?: string;
+}

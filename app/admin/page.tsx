@@ -84,7 +84,7 @@ export default function AdminDashboard() {
         )}
 
         {tab === "launch" && (
-          <LaunchTab schools={schools} appUser={appUser} />
+          <LaunchTab schools={schools} appUser={appUser} firebaseUser={firebaseUser} />
         )}
 
         {tab === "invite" && firebaseUser && (

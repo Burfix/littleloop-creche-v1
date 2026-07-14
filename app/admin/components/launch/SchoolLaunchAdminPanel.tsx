@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { User } from "firebase/auth";
 import type { AppUser, LaunchAuditLogEntry, School, SchoolLaunchRecord, SchoolLaunchStatus } from "@/lib/types";
 import { getSchoolLaunchRecord, getSchoolLaunchStatus } from "@/lib/school-launch";
 import { actorFromAppUser, getAuditLogForSchool } from "@/lib/school-launch-admin";
@@ -17,13 +18,14 @@ import { AuditLogList } from "./AuditLogList";
 interface SchoolLaunchAdminPanelProps {
   school: School;
   appUser: AppUser;
+  firebaseUser: User | null;
 }
 
 // Composes every editor for one school's launch record. Re-fetches from
 // scratch after any write (same "derive, don't optimistically patch"
 // philosophy as the owner-side workspace) rather than trying to keep a
 // nested status/record tree in sync by hand across nine different forms.
-export function SchoolLaunchAdminPanel({ school, appUser }: SchoolLaunchAdminPanelProps) {
+export function SchoolLaunchAdminPanel({ school, appUser, firebaseUser }: SchoolLaunchAdminPanelProps) {
   const [status, setStatus] = useState<SchoolLaunchStatus | null>(null);
   const [record, setRecord] = useState<SchoolLaunchRecord | null>(null);
   const [auditLog, setAuditLog] = useState<LaunchAuditLogEntry[]>([]);
@@ -82,12 +84,12 @@ export function SchoolLaunchAdminPanel({ school, appUser }: SchoolLaunchAdminPan
       </div>
 
       <AdminStageOverview stages={status.stages} />
-      <SpecialistEditorForm schoolId={school.id} specialist={record.specialist} actor={actor} onSaved={handleSaved} />
-      <PaymentEditorForm schoolId={school.id} payment={record.payment} actor={actor} onSaved={handleSaved} />
+      <SpecialistEditorForm schoolId={school.id} specialist={record.specialist} actor={actor} firebaseUser={firebaseUser} onSaved={handleSaved} />
+      <PaymentEditorForm schoolId={school.id} payment={record.payment} actor={actor} firebaseUser={firebaseUser} onSaved={handleSaved} />
       <TargetDateForm schoolId={school.id} targetGoLiveDate={record.targetGoLiveDate} actor={actor} onSaved={handleSaved} />
-      <SessionsManager schoolId={school.id} sessions={record.sessions} actor={actor} onSaved={handleSaved} />
-      <UploadReviewList schoolId={school.id} reviewerUid={appUser.uid} uploads={status.uploads} actor={actor} onSaved={handleSaved} />
-      <TaskOverridesPanel schoolId={school.id} stages={status.stages} record={record} actor={actor} onSaved={handleSaved} />
+      <SessionsManager schoolId={school.id} sessions={record.sessions} actor={actor} firebaseUser={firebaseUser} onSaved={handleSaved} />
+      <UploadReviewList schoolId={school.id} reviewerUid={appUser.uid} uploads={status.uploads} actor={actor} firebaseUser={firebaseUser} onSaved={handleSaved} />
+      <TaskOverridesPanel schoolId={school.id} stages={status.stages} record={record} actor={actor} firebaseUser={firebaseUser} onSaved={handleSaved} />
       <AuditLogList entries={auditLog} loading={auditLoading} />
     </div>
   );

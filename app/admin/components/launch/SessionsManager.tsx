@@ -3,6 +3,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { Plus, Trash2 } from "lucide-react";
+import type { User } from "firebase/auth";
 import type { LaunchSession, LaunchSessionStatus, LaunchSessionType } from "@/lib/types";
 import { upsertLaunchSession, removeLaunchSession, type AdminActor } from "@/lib/school-launch-admin";
 
@@ -10,6 +11,7 @@ interface SessionsManagerProps {
   schoolId: string;
   sessions: LaunchSession[];
   actor: AdminActor;
+  firebaseUser: User | null;
   onSaved: () => void;
 }
 
@@ -36,7 +38,7 @@ function blankForm(): Omit<LaunchSession, "id"> {
   };
 }
 
-export function SessionsManager({ schoolId, sessions, actor, onSaved }: SessionsManagerProps) {
+export function SessionsManager({ schoolId, sessions, actor, firebaseUser, onSaved }: SessionsManagerProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
   const [form, setForm] = useState(blankForm());
@@ -75,6 +77,7 @@ export function SessionsManager({ schoolId, sessions, actor, onSaved }: Sessions
     if (!form.title.trim()) { toast.error("Session title is required"); return; }
     setSaving(true);
     try {
+      const idToken = await firebaseUser?.getIdToken();
       await upsertLaunchSession(schoolId, {
         id: editingId ?? undefined,
         type: form.type,
@@ -85,7 +88,7 @@ export function SessionsManager({ schoolId, sessions, actor, onSaved }: Sessions
         meetingLink: (form.meetingLink ?? "").trim() || undefined,
         participants: participantsText.split(",").map(p => p.trim()).filter(Boolean),
         notes: (form.notes ?? "").trim() || undefined,
-      }, actor);
+      }, actor, idToken);
       toast.success(editingId ? "Session updated" : "Session scheduled");
       cancelForm();
       onSaved();

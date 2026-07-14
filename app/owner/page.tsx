@@ -16,6 +16,7 @@ import {
   updateUser,
 } from "@/lib/db";
 import { getSchoolLaunchStatus } from "@/lib/school-launch";
+import { registerForPushNotifications } from "@/lib/notifications";
 import type { AppUser, Child, ClassRoom, CockpitStats, DailyUpdate, Invoice, School, SchoolLaunchStatus } from "@/lib/types";
 import type { DocumentData, QueryDocumentSnapshot } from "firebase/firestore";
 import toast from "react-hot-toast";
@@ -26,6 +27,7 @@ import { FinancialStats } from "./components/FinancialStats";
 import { BillingTab } from "./components/BillingTab";
 import { SettingsTab } from "./components/SettingsTab";
 import { PageHeader } from "./components/PageHeader";
+import { NotificationBell } from "./components/NotificationBell";
 import { SchoolLaunchWorkspace } from "./components/launch/SchoolLaunchWorkspace";
 import { SuccessPanel } from "./components/launch/SuccessPanel";
 import { LoadingSkeleton } from "./components/launch/LoadingSkeleton";
@@ -103,6 +105,14 @@ export default function OwnerDashboard() {
     }
 
     void loadDashboard();
+
+    // Register for push notifications — silent if browser doesn't support
+    // it or permission is declined (see lib/notifications.ts). Mirrors
+    // app/parent/page.tsx; owners never had this call before, which meant
+    // /api/notifications/send had nothing to send to even when a staff
+    // action tried to reach them.
+    registerForPushNotifications(appUser.uid);
+
     return () => { cancelled = true; };
   }, [appUser, school, schoolLoading, router]);
 
@@ -229,10 +239,13 @@ export default function OwnerDashboard() {
         eyebrow="Owner cockpit"
         title={activeSchool?.name ?? "School setup"}
         actions={
-          <button onClick={handleSignOut}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>
-            <LogOut size={18} />
-          </button>
+          <>
+            <NotificationBell schoolId={activeSchool?.id ?? appUser.schoolId ?? ""} />
+            <button onClick={handleSignOut}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>
+              <LogOut size={18} />
+            </button>
+          </>
         }
       />
 

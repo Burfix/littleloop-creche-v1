@@ -14,6 +14,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { getSchoolLaunchRecord, getSchoolLaunchStatus } from "./school-launch";
+import { notifyOwnerOfLaunchEvent } from "./launch-notifications";
 import type {
   AppUser,
   ImplementationSpecialist,
@@ -42,6 +43,13 @@ import type {
 // hundreds, this should move to a materialized per-school summary doc
 // (written by a Cloud Function on the underlying data changing) instead of
 // computed live on every admin page load.
+//
+// The `idToken` parameter some functions below accept is the calling staff
+// member's fresh Firebase ID token — passed straight through to
+// notifyOwnerOfLaunchEvent so it can authenticate the best-effort push
+// call to /api/notifications/send (same pattern app/teacher/page.tsx uses
+// for teacher -> parent chat pushes). It's optional and omitting it just
+// means the owner still gets the durable in-app notification, no push.
 
 export interface AdminActor {
   uid: string;
@@ -112,6 +120,7 @@ export async function updateSpecialist(
   schoolId: string,
   specialist: ImplementationSpecialist | undefined,
   actor: AdminActor,
+  idToken?: string,
 ): Promise<void> {
   await writeLaunchRecordFields(schoolId, { specialist });
   await safeLogAudit(
@@ -120,17 +129,51 @@ export async function updateSpecialist(
     specialist ? `Specialist set to ${specialist.name}` : "Specialist unassigned",
     actor,
   );
+  if (specialist) {
+    await notifyOwnerOfLaunchEvent({
+      schoolId,
+      category: "specialist_assigned",
+      title: "Your implementation specialist has been assigned",
+      body: `${specialist.name} is now your point of contact for your School Launch Package.`,
+      link: "/owner",
+      actorIdToken: idToken,
+    });
+  }
 }
 
 // ─── Payment ────────────────────────────────────────────────────────────────
 
-export async function updatePayment(schoolId: string, payment: SchoolLaunchPayment, actor: AdminActor): Promise<void> {
+const PAYMENT_NOTIFICATION_COPY: Record<SchoolLaunchPayment["status"], string | null> = {
+  unpaid: null, // resets are an internal correction, not owner-facing news
+  invoiced: "An invoice for your School Launch Package is on its way.",
+  paid: "Thanks — your School Launch Package payment has been confirmed.",
+  waived: "Your School Launch Package fee has been waived.",
+};
+
+export async function updatePayment(
+  schoolId: string,
+  payment: SchoolLaunchPayment,
+  actor: AdminActor,
+  idToken?: string,
+): Promise<void> {
   const withTimestamp: SchoolLaunchPayment = {
     ...payment,
     paidAt: payment.status === "paid" ? (payment.paidAt ?? new Date().toISOString()) : payment.paidAt,
   };
   await writeLaunchRecordFields(schoolId, { payment: withTimestamp });
   await safeLogAudit(schoolId, "payment_updated", `Payment marked as ${payment.status}`, actor, { status: payment.status });
+
+  const body = PAYMENT_NOTIFICATION_COPY[payment.status];
+  if (body) {
+    await notifyOwnerOfLaunchEvent({
+      schoolId,
+      category: "payment_updated",
+      title: `${payment.packageName} — payment update`,
+      body,
+      link: "/owner",
+      actorIdToken: idToken,
+    });
+  }
 }
 
 // ─── Target go-live date ────────────────────────────────────────────────────
@@ -158,6 +201,7 @@ export async function upsertLaunchSession(
   schoolId: string,
   session: Omit<LaunchSession, "id"> & { id?: string },
   actor: AdminActor,
+  idToken?: string,
 ): Promise<void> {
   const record = await getSchoolLaunchRecord(schoolId);
   const isNew = !session.id;
@@ -174,6 +218,18 @@ export async function upsertLaunchSession(
     actor,
     { sessionId: finalSession.id, status: finalSession.status },
   );
+
+  const whenText = finalSession.scheduledAt
+    ? new Date(finalSession.scheduledAt).toLocaleString("en-ZA", { dateStyle: "medium", timeStyle: "short" })
+    : "a time to be confirmed";
+  await notifyOwnerOfLaunchEvent({
+    schoolId,
+    category: isNew ? "session_scheduled" : "session_updated",
+    title: isNew ? "A launch session has been scheduled" : "Your launch session was updated",
+    body: `${finalSession.title} — ${whenText}.`,
+    link: "/owner",
+    actorIdToken: idToken,
+  });
 }
 
 export async function removeLaunchSession(schoolId: string, sessionId: string, actor: AdminActor): Promise<void> {
@@ -220,9 +276,17 @@ export async function setTaskOverride(
 // goLive's status is derived purely from record.launchedAt (see
 // lib/school-launch.ts deriveTaskStatus) — no taskOverrides entry needed,
 // just set the timestamp that marks the school as live.
-export async function markSchoolGoLive(schoolId: string, actor: AdminActor): Promise<void> {
+export async function markSchoolGoLive(schoolId: string, actor: AdminActor, idToken?: string): Promise<void> {
   await writeLaunchRecordFields(schoolId, { launchedAt: new Date().toISOString() });
   await safeLogAudit(schoolId, "go_live_marked", "School marked as live", actor);
+  await notifyOwnerOfLaunchEvent({
+    schoolId,
+    category: "go_live",
+    title: "Your school is now live on LittleLoop",
+    body: "Your School Launch Package is complete — you're fully operational.",
+    link: "/owner",
+    actorIdToken: idToken,
+  });
 }
 
 // ─── Upload review ──────────────────────────────────────────────────────────
@@ -234,6 +298,7 @@ export async function reviewLaunchUpload(
   reviewerUid: string,
   actor: AdminActor,
   feedback?: string,
+  idToken?: string,
 ): Promise<void> {
   await updateDoc(doc(db, "launchUploads", uploadId), {
     status: decision,
@@ -247,6 +312,28 @@ export async function reviewLaunchUpload(
     : decision === "needs_changes" ? "Upload sent back for changes"
     : "Upload marked as under review";
   await safeLogAudit(schoolId, "upload_reviewed", summary, actor, { uploadId, decision });
+
+  // "under_review" is a staff-internal waypoint, not owner-actionable —
+  // only tell the owner once there's something they'd actually do differently.
+  if (decision === "accepted") {
+    await notifyOwnerOfLaunchEvent({
+      schoolId,
+      category: "upload_reviewed",
+      title: "Your data submission was imported",
+      body: "We've reviewed and imported your file — no action needed.",
+      link: "/owner",
+      actorIdToken: idToken,
+    });
+  } else if (decision === "needs_changes") {
+    await notifyOwnerOfLaunchEvent({
+      schoolId,
+      category: "upload_reviewed",
+      title: "Your data submission needs a change",
+      body: feedback?.trim() || "We found something that needs fixing before we can import it — please re-upload.",
+      link: "/owner",
+      actorIdToken: idToken,
+    });
+  }
 }
 
 // ─── Reads ──────────────────────────────────────────────────────────────────
