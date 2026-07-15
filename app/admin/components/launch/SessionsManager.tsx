@@ -92,7 +92,8 @@ export function SessionsManager({ schoolId, sessions, actor, firebaseUser, onSav
       toast.success(editingId ? "Session updated" : "Session scheduled");
       cancelForm();
       onSaved();
-    } catch {
+    } catch (err) {
+      console.error("Failed to save launch session", { schoolId, editingId, err });
       toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
@@ -105,7 +106,8 @@ export function SessionsManager({ schoolId, sessions, actor, firebaseUser, onSav
       await removeLaunchSession(schoolId, sessionId, actor);
       toast.success("Session removed");
       onSaved();
-    } catch {
+    } catch (err) {
+      console.error("Failed to remove launch session", { schoolId, sessionId, err });
       toast.error("Couldn't remove. Please try again.");
     } finally {
       setSaving(false);

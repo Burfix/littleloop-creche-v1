@@ -43,7 +43,8 @@ function OverrideRow({ schoolId, taskKey, currentStatus, currentNotes, actor, on
       }, actor);
       toast.success("Saved");
       onSaved();
-    } catch {
+    } catch (err) {
+      console.error("Failed to save task override", { schoolId, taskKey, err });
       toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
@@ -56,7 +57,8 @@ function OverrideRow({ schoolId, taskKey, currentStatus, currentNotes, actor, on
       await setTaskOverride(schoolId, taskKey, null, actor);
       toast.success("Override cleared. Back to automatic status.");
       onSaved();
-    } catch {
+    } catch (err) {
+      console.error("Failed to clear task override", { schoolId, taskKey, err });
       toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
@@ -107,7 +109,8 @@ export function TaskOverridesPanel({ schoolId, stages, record, actor, firebaseUs
       await markSchoolGoLive(schoolId, actor, idToken);
       toast.success("School marked as live");
       onSaved();
-    } catch {
+    } catch (err) {
+      console.error("Failed to mark school go-live", { schoolId, err });
       toast.error("Couldn't save. Please try again.");
     } finally {
       setGoingLive(false);

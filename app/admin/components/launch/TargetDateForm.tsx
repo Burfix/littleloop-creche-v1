@@ -21,7 +21,8 @@ export function TargetDateForm({ schoolId, targetGoLiveDate, actor, onSaved }: T
       await updateTargetGoLiveDate(schoolId, date ? new Date(date).toISOString() : undefined, actor);
       toast.success("Target launch date updated");
       onSaved();
-    } catch {
+    } catch (err) {
+      console.error("Failed to save target go-live date", { schoolId, err });
       toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);

@@ -43,7 +43,8 @@ function UploadRow({ schoolId, reviewerUid, kind, upload, actor, firebaseUser, o
       await reviewLaunchUpload(upload.id, schoolId, "accepted", reviewerUid, actor, undefined, idToken);
       toast.success(`${KIND_LABELS[kind]} accepted`);
       onSaved();
-    } catch {
+    } catch (err) {
+      console.error("Failed to accept launch upload", { schoolId, uploadId: upload.id, err });
       toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
@@ -60,7 +61,8 @@ function UploadRow({ schoolId, reviewerUid, kind, upload, actor, firebaseUser, o
       setShowFeedback(false);
       setFeedback("");
       onSaved();
-    } catch {
+    } catch (err) {
+      console.error("Failed to send launch upload back for changes", { schoolId, uploadId: upload.id, err });
       toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);

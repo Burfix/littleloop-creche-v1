@@ -39,7 +39,8 @@ export function PaymentEditorForm({ schoolId, payment, actor, firebaseUser, onSa
       }, actor, idToken);
       toast.success("Payment updated");
       onSaved();
-    } catch {
+    } catch (err) {
+      console.error("Failed to save payment", { schoolId, err });
       toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);

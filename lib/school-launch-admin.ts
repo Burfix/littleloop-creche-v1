@@ -65,11 +65,43 @@ export function actorFromAppUser(appUser: AppUser | null): AdminActor {
 
 // ─── Shared write helpers ──────────────────────────────────────────────────
 
+// The Firestore web SDK throws synchronously if ANY value in the write
+// payload is a raw `undefined` — including nested inside objects/arrays,
+// not just top-level fields. Every editor form in this module builds its
+// payload with patterns like `email: email.trim() || undefined` for
+// optional fields nested inside an object (e.g. `specialist`, `payment`),
+// so a shallow, top-level-only sanitize was letting nested `undefined`
+// values straight through to setDoc() and crashing the write before it
+// ever reached the network — surfacing to the operator as a generic
+// "Couldn't save" with no server-side trace at all. stripUndefinedDeep
+// recursively removes those keys/entries so nested optional fields are
+// simply omitted instead of poisoning the whole write.
+// Exported (only) so it has a direct unit test — see school-launch-admin.test.ts.
+// Every other export in this module is a thin Firestore read-modify-write and
+// isn't worth mocking the SDK for; this is the one piece of real logic.
+export function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value
+      .filter(v => v !== undefined)
+      .map(v => stripUndefinedDeep(v)) as unknown as T;
+  }
+  if (value !== null && typeof value === "object" && !(value instanceof Date)) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) out[k] = stripUndefinedDeep(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
 // setDoc(..., {merge:true}) so this works whether or not a schoolLaunches
 // doc exists yet — no school is ever required to have one in advance (see
-// normalizeSchoolLaunchRecord in lib/school-launch.ts). `undefined` values
-// are converted to deleteField() since the Firestore SDK rejects raw
-// `undefined` in a write payload.
+// normalizeSchoolLaunchRecord in lib/school-launch.ts). Top-level `undefined`
+// values are converted to deleteField() (an explicit clear of a
+// previously-set field); undefined nested inside an object/array value is
+// stripped via stripUndefinedDeep, since deleteField() isn't valid at
+// nested positions and Firestore rejects raw `undefined` there outright.
 async function writeLaunchRecordFields(schoolId: string, fields: Record<string, unknown>): Promise<void> {
   const ref = doc(db, "schoolLaunches", schoolId);
   const snap = await getDoc(ref);
@@ -77,7 +109,7 @@ async function writeLaunchRecordFields(schoolId: string, fields: Record<string, 
 
   const sanitized: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(fields)) {
-    sanitized[key] = value === undefined ? deleteField() : value;
+    sanitized[key] = value === undefined ? deleteField() : stripUndefinedDeep(value);
   }
 
   await setDoc(ref, {

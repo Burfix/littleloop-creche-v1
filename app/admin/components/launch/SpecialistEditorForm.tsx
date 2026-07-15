@@ -42,7 +42,8 @@ export function SpecialistEditorForm({ schoolId, specialist, actor, firebaseUser
       }, actor, idToken);
       toast.success("Specialist updated");
       onSaved();
-    } catch {
+    } catch (err) {
+      console.error("Failed to save specialist", { schoolId, err });
       toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
@@ -55,7 +56,8 @@ export function SpecialistEditorForm({ schoolId, specialist, actor, firebaseUser
       await updateSpecialist(schoolId, undefined, actor);
       toast.success("Specialist unassigned");
       onSaved();
-    } catch {
+    } catch (err) {
+      console.error("Failed to unassign specialist", { schoolId, err });
       toast.error("Couldn't save. Please try again.");
     } finally {
       setSaving(false);
