@@ -97,12 +97,7 @@ export default function AdminDashboard() {
         )}
 
         {tab === "users" && firebaseUser && (
-          <UsersPanel
-            schools={schools}
-            firebaseUser={firebaseUser}
-            targetEmail="rodwingoldstone@gmail.com"
-            targetDisplayName="Rodwin Goldstone"
-          />
+          <UsersPanel schools={schools} firebaseUser={firebaseUser} />
         )}
       </div>
 

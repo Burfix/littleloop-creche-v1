@@ -18,12 +18,9 @@ const ROLE_PILL: Record<string, string> = {
 interface UsersPanelProps {
   schools: School[];
   firebaseUser: User;
-  /** Pre-fill suggestion — highlight a user whose display name should be updated */
-  targetEmail?: string;
-  targetDisplayName?: string;
 }
 
-export function UsersPanel({ schools, firebaseUser, targetEmail, targetDisplayName }: UsersPanelProps) {
+export function UsersPanel({ schools, firebaseUser }: UsersPanelProps) {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -45,9 +42,9 @@ export function UsersPanel({ schools, firebaseUser, targetEmail, targetDisplayNa
     (roleFilter === "all" || user.role === roleFilter)
   );
 
-  const startEditing = (user: AppUser, suggestedName?: string) => {
+  const startEditing = (user: AppUser) => {
     setEditingUid(user.uid);
-    setDraftName(suggestedName ?? user.displayName ?? "");
+    setDraftName(user.displayName ?? "");
   };
 
   const saveDisplayName = async (user: AppUser) => {
@@ -151,7 +148,6 @@ export function UsersPanel({ schools, firebaseUser, targetEmail, targetDisplayNa
         <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No users found.</p>
       ) : filtered.map(user => {
         const isEditing = editingUid === user.uid;
-        const suggestedName = targetEmail && user.email === targetEmail ? targetDisplayName : undefined;
 
         return (
           <div key={user.uid} className="card">
@@ -206,12 +202,6 @@ export function UsersPanel({ schools, firebaseUser, targetEmail, targetDisplayNa
                     onClick={() => deleteUser(user)}>
                     {deletingUid === user.uid ? <span className="spinner" /> : "Delete"}
                   </button>
-                  {suggestedName && user.displayName !== suggestedName && (
-                    <button className="btn btn-primary" style={{ flex: 1, fontSize: 13 }}
-                      onClick={() => startEditing(user, suggestedName)}>
-                      Use {suggestedName}
-                    </button>
-                  )}
                 </>
               )}
             </div>
